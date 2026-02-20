@@ -1,0 +1,61 @@
+exclude: ^(resources|tests/resources)/
+
+repos:
+-   repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.0
+    hooks:
+      - id: ruff
+        name: Run ruff to auto-fix lint errors
+        types_or: [ python, pyi ]
+      - id: ruff-format
+        name: Run ruff to format code
+        types_or: [ python, pyi ]
+
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+    -   id: check-yaml
+    -   id: end-of-file-fixer
+    -   id: check-added-large-files
+    -   id: debug-statements
+        language_version: python3
+
+-   repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.19.1
+    hooks:
+    -   id: mypy
+        files: ^src/dataprocessor/
+
+-   repo: https://github.com/commitizen-tools/commitizen
+    rev: v4.11.6
+    hooks:
+      - id: commitizen
+        stages: [commit-msg]
+
+-   repo: https://github.com/astral-sh/uv-pre-commit
+    rev: 0.10.0
+    hooks:
+    -   id: uv-lock
+        name: Update uv lock file
+
+- repo: https://github.com/jsh9/pydoclint
+  rev: 0.8.3
+  hooks:
+    - id: pydoclint
+      files: ^src/dataset_processor/
+
+- repo: https://github.com/tox-dev/pyproject-fmt
+  rev: v2.11.1
+  hooks:
+    - id: pyproject-fmt
+
+- repo: https://github.com/tox-dev/tox-toml-fmt
+  rev: v1.2.2
+  hooks:
+    - id: tox-toml-fmt
+
+- repo: https://github.com/python-jsonschema/check-jsonschema
+  rev: 0.36.0
+  hooks:
+    - id: check-github-workflows
+      args: ["--verbose"]
