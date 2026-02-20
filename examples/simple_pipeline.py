@@ -16,7 +16,7 @@ def scale(input: list[int], factor: int) -> list[int]:
     return [x * factor for x in input]
 
 
-def sort(input: list[int]) -> list[float]:
+def sort(input: list[int]) -> list[int]:
     """Sorts the input list."""
     return sorted(input)
 

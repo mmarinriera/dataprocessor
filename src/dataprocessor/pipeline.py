@@ -6,8 +6,9 @@ from pathlib import Path
 from typing import Any
 
 from dataprocessor.utils import ValidationError
-from dataprocessor.utils import get_arg_type_annotations
-from dataprocessor.utils import get_return_type_annotation
+from dataprocessor.utils import get_func_arg_type_annotations
+from dataprocessor.utils import get_func_required_args
+from dataprocessor.utils import get_func_return_type_annotation
 
 
 @dataclass
@@ -105,8 +106,35 @@ class Pipeline:
         for step in self.steps.values():
             if not step.inputs:
                 continue
+
             input_steps = [self.steps[input_name] for input_name in step.inputs]
-            input_step_out_types = [get_return_type_annotation(input_step.processor) for input_step in input_steps]
-            processor_arg_types = get_arg_type_annotations(step.processor)
+            input_step_out_types = [get_func_return_type_annotation(input_step.processor) for input_step in input_steps]
+            processor_arg_types = get_func_arg_type_annotations(step.processor)
             if not all(t == u for t, u in zip(input_step_out_types, processor_arg_types.values())):
                 raise ValidationError(f"Step '{step.name}': Input types do not match processor inputs.")
+
+            processor_arg_types = get_func_arg_type_annotations(step.processor)
+
+            # Check that all required processor arguments are provided by either inputs or params
+            required_arg_names = get_func_required_args(step.processor)
+            required_param_arg_names = required_arg_names[len(step.inputs) :]
+            for arg_name in required_param_arg_names:
+                if arg_name not in step.params:
+                    raise ValidationError(
+                        f"Step '{step.name}': Required parameter '{arg_name}' not provided in params."
+                    )
+
+            if not step.params:
+                continue
+
+            # Check that all parameters passed match an argument in the processor and that the types match
+            for param_name, param_value in step.params.items():
+                if param_name not in processor_arg_types:
+                    raise ValidationError(
+                        f"Step '{step.name}': Parameter '{param_name}' not found in processor arguments."
+                    )
+                expected_type = processor_arg_types[param_name]
+                if not isinstance(param_value, expected_type):
+                    raise ValidationError(
+                        f"Step '{step.name}': Parameter '{param_name}' expected type {expected_type}, got {type(param_value)}."
+                    )
