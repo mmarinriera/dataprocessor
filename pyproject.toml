@@ -30,6 +30,7 @@ line-length = 120
 fix-only = true
 
 lint.select = [ "ALL" ]
+lint.ignore = [ "COM812", "D203", "D212" ]
 lint.isort.force-single-line = true
 
 [tool.mypy]
