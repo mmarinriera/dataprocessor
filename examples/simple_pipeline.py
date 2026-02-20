@@ -16,7 +16,7 @@ def scale(input: list[int], factor: int) -> list[int]:
     return [x * factor for x in input]
 
 
-def sort(input: list[int]) -> list[int]:
+def sort(input: list[int]) -> list[float]:
     """Sorts the input list."""
     return sorted(input)
 
@@ -57,6 +57,7 @@ def main():
         save_path="./filtered_output.csv",
     )
 
+    pipeline.validate_step_types()
     pipeline.run()
 
     scaled = pipeline.get_output("scaled")

@@ -5,6 +5,10 @@ from graphlib import TopologicalSorter
 from pathlib import Path
 from typing import Any
 
+from dataprocessor.utils import ValidationError
+from dataprocessor.utils import get_arg_type_annotations
+from dataprocessor.utils import get_return_type_annotation
+
 
 @dataclass
 class Step:
@@ -96,3 +100,13 @@ class Pipeline:
         if step.data is None:
             raise ValueError(f"Step '{name}' has not been executed yet.")
         return step.data
+
+    def validate_step_types(self) -> None:
+        for step in self.steps.values():
+            if not step.inputs:
+                continue
+            input_steps = [self.steps[input_name] for input_name in step.inputs]
+            input_step_out_types = [get_return_type_annotation(input_step.processor) for input_step in input_steps]
+            processor_arg_types = get_arg_type_annotations(step.processor)
+            if not all(t == u for t, u in zip(input_step_out_types, processor_arg_types.values())):
+                raise ValidationError(f"Step '{step.name}': Input types do not match processor inputs.")
