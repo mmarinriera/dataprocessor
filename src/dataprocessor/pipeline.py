@@ -13,9 +13,19 @@ class Step:
     inputs: list[str] = field(default_factory=list)
     params: dict[str, Any] = field(default_factory=dict)
     input_data: Any = None
-    data: Any | None = field(init=False, default=None)
     save_method: Callable[[Any, str | Path], None] | None = None
     save_path: str | Path | None = None
+    _data: Any | None = field(init=False, default=None)
+
+    @property
+    def data(self) -> Any:
+        if self._data is None:
+            raise AttributeError(f"Step '{self.name}': Attempted data retrieval before solving.")
+        return self._data
+
+    @data.setter
+    def data(self, data: Any) -> None:
+        self._data = data
 
 
 class Pipeline:
