@@ -5,8 +5,9 @@ requires = [ "setuptools>=80", "wheel" ]
 [project]
 name = "dataprocessor"
 version = "0.0.0"
-description = "Add your description here"
+description = "Helper module to design and run robust and flexible data processing and analysis pipelines."
 readme = "README.md"
+license = { file = "LICENSE" }
 requires-python = ">=3.10"
 classifiers = [
   "Programming Language :: Python :: 3 :: Only",
