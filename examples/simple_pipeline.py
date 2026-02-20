@@ -1,7 +1,7 @@
 import csv
 from pathlib import Path
 
-from dataprocessor.pipeline import Pipeline
+from dataprocessor import Pipeline
 
 
 def save_sequence_csv(input: list[int], filename: str | Path) -> None:
@@ -59,7 +59,6 @@ def main():
 
     pipeline.run()
 
-    # Run the pipeline with an initial input
     scaled = pipeline.get_output("scaled")
     sorted = pipeline.get_output("sorted")
     filtered = pipeline.get_output("filtered")
