@@ -1,4 +1,14 @@
+import csv
+from pathlib import Path
+
 from dataprocessor.pipeline import Pipeline
+
+
+def save_sequence_csv(input: list[int], filename: str | Path) -> None:
+    """Saves the input list as a CSV file."""
+    with open(filename, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(input)
 
 
 def scale(input: list[int], factor: int) -> list[int]:
@@ -26,12 +36,16 @@ def main():
         input_data=[5, 6, 4, 8, 6, 1],
         inputs=None,
         params={"factor": 2},
+        save_method=save_sequence_csv,
+        save_path="./scaled_output.csv",
     )
 
     pipeline.add_step(
         name="sorted",
         processor=sort,
         inputs="scaled",
+        save_method=save_sequence_csv,
+        save_path="./sorted_output.csv",
     )
 
     pipeline.add_step(
@@ -39,6 +53,8 @@ def main():
         processor=filter_by_threshold,
         inputs="sorted",
         params={"threshold": 10},
+        save_method=save_sequence_csv,
+        save_path="./filtered_output.csv",
     )
 
     pipeline.run()

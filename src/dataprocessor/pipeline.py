@@ -2,6 +2,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field
 from graphlib import TopologicalSorter
+from pathlib import Path
 from typing import Any
 
 
@@ -13,6 +14,8 @@ class Step:
     params: dict[str, Any] = field(default_factory=dict)
     input_data: Any = None
     data: Any | None = field(init=False, default=None)
+    save_method: Callable[[Any, str | Path], None] | None = None
+    save_path: str | Path | None = None
 
 
 class Pipeline:
@@ -29,6 +32,8 @@ class Pipeline:
         inputs: list[str] | str | None,
         params: dict[str, Any] | None = None,
         input_data: Any = None,
+        save_method: Callable[[Any, str | Path], None] | None = None,
+        save_path: str | Path | None = None,
     ) -> None:
 
         if name in self.steps:
@@ -52,25 +57,27 @@ class Pipeline:
             inputs=inputs,
             params=params,
             input_data=input_data,
+            save_method=save_method,
+            save_path=save_path,
         )
 
         self.sorter.add(name, *inputs)
 
     def run(self) -> None:
-        # Get the execution order of the steps
         execution_order = list(self.sorter.static_order())
+
         for step_name in execution_order:
-            print(f"step name {step_name}")
             step = self.steps[step_name]
             inputs = step.inputs
 
             input_values = [self.steps[input_name].data for input_name in inputs]
             if not input_values:
                 input_values = [step.input_data]
-            print(f"input values {input_values}")
-            # Execute the processor function with the input values and parameters
+
             output = step.processor(*input_values, **step.params)
             step.data = output
+            if step.save_method is not None and step.save_path is not None:
+                step.save_method(output, step.save_path)
 
     def get_output(self, name: str) -> Any:
         step = self.steps.get(name)
