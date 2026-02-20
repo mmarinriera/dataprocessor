@@ -62,16 +62,14 @@ class Pipeline:
         for step_name in execution_order:
             print(f"step name {step_name}")
             step = self.steps[step_name]
-            processor = step.processor
             inputs = step.inputs
-            params = step.params
-            # Get the input values for the current step
+
             input_values = [self.steps[input_name].data for input_name in inputs]
             if not input_values:
                 input_values = [step.input_data]
             print(f"input values {input_values}")
             # Execute the processor function with the input values and parameters
-            output = processor(*input_values, **params)
+            output = step.processor(*input_values, **step.params)
             step.data = output
 
     def get_output(self, name: str) -> Any:
