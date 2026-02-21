@@ -38,9 +38,10 @@ class Step:
 class Pipeline:
     """A simple data processing pipeline that allows you to define steps with dependencies and execute them in the correct order."""
 
-    def __init__(self) -> None:
+    def __init__(self, force_run: bool = True) -> None:
         self.steps: dict[str, Step] = {}
         self.sorter: TopologicalSorter[str] = TopologicalSorter()
+        self.force_run = force_run
 
     def add_step(
         self,
@@ -87,6 +88,30 @@ class Pipeline:
 
         self.sorter.add(name, *inputs)
 
+    def _autoload_allowed(self, step: Step) -> bool:
+        if step.load_method is None or step.output_path is None:
+            print(f"Step '{step.name}': Autoload not allowed because load_method or output_path is not defined.")
+            return False
+
+        if not Path(step.output_path).exists():
+            print(f"Step '{step.name}': Output file '{step.output_path}' does not exist.")
+            return False
+
+        # Check that the output file is newer than all input files
+        output_mtime = Path(step.output_path).stat().st_mtime
+        for input_name in step.inputs:
+            input_step = self.steps[input_name]
+            if input_step.output_path is None or not Path(input_step.output_path).exists():
+                print(f"input file not found. {input_step.output_path}")
+                return False
+
+            input_mtime = Path(input_step.output_path).stat().st_mtime
+            if input_mtime > output_mtime:
+                print(f"input file '{input_step.output_path}' is newer than output file '{step.output_path}'.")
+                return False
+
+        return True
+
     def run(self) -> None:
         execution_order = list(self.sorter.static_order())
 
@@ -105,6 +130,13 @@ class Pipeline:
             else:
                 print(f"Step '{step.name}': Using provided input steps.")
                 input_values = [self.steps[input_name].data for input_name in inputs]
+
+            if not self.force_run:
+                if self._autoload_allowed(step):
+                    print(f"Step '{step.name}': Output file '{step.output_path}' found. Loading output from file.")
+                    step.data = step.load_method(step.output_path)  # type: ignore
+                    continue
+                print(f"Step '{step.name}': Output file '{step.output_path}' not found or outdated. Recomputing step.")
 
             output = step.processor(*input_values, **step.params)
             step.data = output

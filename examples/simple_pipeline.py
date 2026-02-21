@@ -52,16 +52,12 @@ def main():
         input_data=[5, 4, 3, 2, 1, 0],
         inputs=None,
         params={"factor": 2},
-        save_method=save_sequence_csv,
-        output_path="./examples/data/scaled_output.csv",
     )
 
     pipeline_1.add_step(
         name="sorted",
         processor=sort,
         inputs="scaled",
-        save_method=save_sequence_csv,
-        output_path="./examples/data/sorted_output.csv",
     )
 
     pipeline_1.add_step(
@@ -69,8 +65,6 @@ def main():
         processor=filter_by_threshold,
         inputs="sorted",
         params={"threshold": 5},
-        save_method=save_sequence_csv,
-        output_path="./examples/data/filtered_output.csv",
     )
 
     pipeline_1.validate_step_types()
@@ -90,7 +84,7 @@ def main():
     assert filtered == [6, 8, 10], "Filtered output is incorrect"
 
     # Pipeline 2: First step is initialised by loading data from a file.
-    pipeline_2 = Pipeline()
+    pipeline_2 = Pipeline(force_run=False)
 
     pipeline_2.add_step(
         name="scaled",
@@ -106,6 +100,7 @@ def main():
         name="sorted",
         processor=sort,
         inputs="scaled",
+        load_method=load_sequence_csv,
         save_method=save_sequence_csv,
         output_path="./examples/data/sorted_output.csv",
     )
@@ -115,6 +110,7 @@ def main():
         processor=filter_by_threshold,
         inputs="sorted",
         params={"threshold": 10},
+        load_method=load_sequence_csv,
         save_method=save_sequence_csv,
         output_path="./examples/data/filtered_output.csv",
     )
