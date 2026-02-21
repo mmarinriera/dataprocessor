@@ -18,8 +18,10 @@ class Step:
     inputs: list[str] = field(default_factory=list)
     params: dict[str, Any] = field(default_factory=dict)
     input_data: Any = None
+    input_path: str | Path | None = None
+    output_path: str | Path | None = None
+    load_method: Callable[[str | Path], Any] | None = None
     save_method: Callable[[Any, str | Path], None] | None = None
-    save_path: str | Path | None = None
     _data: Any | None = field(init=False, default=None)
 
     @property
@@ -44,11 +46,13 @@ class Pipeline:
         self,
         name: str,
         processor: Callable[..., Any],
-        inputs: list[str] | str | None,
+        inputs: list[str] | str | None = None,
         params: dict[str, Any] | None = None,
         input_data: Any = None,
+        input_path: str | Path | None = None,
+        output_path: str | Path | None = None,
+        load_method: Callable[[str | Path], Any] | None = None,
         save_method: Callable[[Any, str | Path], None] | None = None,
-        save_path: str | Path | None = None,
     ) -> None:
 
         if name in self.steps:
@@ -60,8 +64,11 @@ class Pipeline:
         if inputs is None:
             inputs = []
 
-        if not inputs and input_data is None:
-            raise ValueError(f"Step '{name}' must have either inputs or input data.")
+        if not inputs and input_data is None and input_path is None:
+            raise ValueError(f"Step '{name}' must have either inputs, input data, or an input path.")
+
+        if input_path is not None and load_method is None:
+            raise ValueError(f"Step '{name}': a load_method must be provided if input_path is specified.")
 
         if params is None:
             params = {}
@@ -72,8 +79,10 @@ class Pipeline:
             inputs=inputs,
             params=params,
             input_data=input_data,
+            input_path=input_path,
+            load_method=load_method,
             save_method=save_method,
-            save_path=save_path,
+            output_path=output_path,
         )
 
         self.sorter.add(name, *inputs)
@@ -85,14 +94,22 @@ class Pipeline:
             step = self.steps[step_name]
             inputs = step.inputs
 
-            input_values = [self.steps[input_name].data for input_name in inputs]
-            if not input_values:
+            if step.input_path is not None:
+                if step.load_method is None:
+                    raise ValueError(f"Step '{step.name}': load_method must be provided to load input from file.")
+                print(f"Step '{step.name}': Loading input from file,'{step.input_path}'.")
+                input_values = [step.load_method(step.input_path)]
+            elif step.input_data is not None:
+                print(f"Step '{step.name}': Using provided input data.")
                 input_values = [step.input_data]
+            else:
+                print(f"Step '{step.name}': Using provided input steps.")
+                input_values = [self.steps[input_name].data for input_name in inputs]
 
             output = step.processor(*input_values, **step.params)
             step.data = output
-            if step.save_method is not None and step.save_path is not None:
-                step.save_method(output, step.save_path)
+            if step.save_method is not None and step.output_path is not None:
+                step.save_method(output, step.output_path)
 
     def get_output(self, name: str) -> Any:
         step = self.steps.get(name)
