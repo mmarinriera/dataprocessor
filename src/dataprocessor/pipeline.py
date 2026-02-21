@@ -1,3 +1,4 @@
+import json
 from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field
@@ -5,10 +6,13 @@ from graphlib import TopologicalSorter
 from pathlib import Path
 from typing import Any
 
+from dataprocessor.logger import get_logger
 from dataprocessor.utils import ValidationError
 from dataprocessor.utils import get_func_arg_type_annotations
 from dataprocessor.utils import get_func_required_args
 from dataprocessor.utils import get_func_return_type_annotation
+
+logger = get_logger()
 
 
 @dataclass
@@ -18,8 +22,10 @@ class Step:
     inputs: list[str] = field(default_factory=list)
     params: dict[str, Any] = field(default_factory=dict)
     input_data: Any = None
+    input_path: str | Path | None = None
+    output_path: str | Path | None = None
+    load_method: Callable[[str | Path], Any] | None = None
     save_method: Callable[[Any, str | Path], None] | None = None
-    save_path: str | Path | None = None
     _data: Any | None = field(init=False, default=None)
 
     @property
@@ -36,19 +42,40 @@ class Step:
 class Pipeline:
     """A simple data processing pipeline that allows you to define steps with dependencies and execute them in the correct order."""
 
-    def __init__(self) -> None:
+    def __init__(self, force_run: bool = True, metadata_path: str | Path | None = None) -> None:
         self.steps: dict[str, Step] = {}
         self.sorter: TopologicalSorter[str] = TopologicalSorter()
+        self.force_run = force_run
+
+        self.metadata_path = Path(metadata_path).with_suffix(".json") if metadata_path is not None else None
+        self.track_metadata = metadata_path is not None
+        self.metadata: dict[str, dict[str, Any]] = {"steps": {}}
+        self.tracked_metadata: dict[str, dict[str, Any]] | None = None
+        if self.track_metadata and self.metadata_path is not None:
+            if self.metadata_path.exists():
+                with open(self.metadata_path) as f:
+                    self.tracked_metadata = json.load(f)
+
+    def _update_metadata(self, step: Step) -> None:
+        self.metadata["steps"][step.name] = {
+            "processor": getattr(step.processor, "__name__", "no_processor_name"),
+            "inputs": step.inputs,
+            "params": step.params,
+            "input_path": str(step.input_path) if step.input_path else None,
+            "output_path": str(step.output_path) if step.output_path else None,
+        }
 
     def add_step(
         self,
         name: str,
         processor: Callable[..., Any],
-        inputs: list[str] | str | None,
+        inputs: list[str] | str | None = None,
         params: dict[str, Any] | None = None,
         input_data: Any = None,
+        input_path: str | Path | None = None,
+        output_path: str | Path | None = None,
+        load_method: Callable[[str | Path], Any] | None = None,
         save_method: Callable[[Any, str | Path], None] | None = None,
-        save_path: str | Path | None = None,
     ) -> None:
 
         if name in self.steps:
@@ -60,23 +87,71 @@ class Pipeline:
         if inputs is None:
             inputs = []
 
-        if not inputs and input_data is None:
-            raise ValueError(f"Step '{name}' must have either inputs or input data.")
+        if not inputs and input_data is None and input_path is None:
+            raise ValueError(f"Step '{name}' must have either inputs, input data, or an input path.")
+
+        if input_path is not None and load_method is None:
+            raise ValueError(f"Step '{name}': a load_method must be provided if input_path is specified.")
 
         if params is None:
             params = {}
 
-        self.steps[name] = Step(
+        step = Step(
             name=name,
             processor=processor,
             inputs=inputs,
             params=params,
             input_data=input_data,
+            input_path=input_path,
+            load_method=load_method,
             save_method=save_method,
-            save_path=save_path,
+            output_path=output_path,
         )
 
+        self.steps[name] = step
         self.sorter.add(name, *inputs)
+
+        if self.track_metadata:
+            self._update_metadata(step)
+
+    def _autoload_allowed(self, step: Step) -> bool:
+        if step.load_method is None or step.output_path is None:
+            logger.debug(f"Step '{step.name}': Autoload not allowed because load_method or output_path is not defined.")
+            return False
+
+        if not Path(step.output_path).exists():
+            logger.debug(f"Step '{step.name}': Output file '{step.output_path}' does not exist.")
+            return False
+
+        # Check that the output file is newer than all input files
+        output_mtime = Path(step.output_path).stat().st_mtime
+        for input_name in step.inputs:
+            input_step = self.steps[input_name]
+            if input_step.output_path is None or not Path(input_step.output_path).exists():
+                logger.debug(f"input file not found. {input_step.output_path}")
+                return False
+
+            input_mtime = Path(input_step.output_path).stat().st_mtime
+            if input_mtime > output_mtime:
+                logger.debug(f"input file '{input_step.output_path}' is newer than output file '{step.output_path}'.")
+                return False
+
+        if not self.track_metadata:
+            return True
+
+        if self.tracked_metadata is None:
+            logger.debug(f"Step '{step.name}': No tracked metadata found, cannot validate autoload.")
+            return False
+
+        # Check that tracked step metadata matches current step configuration
+        tracked_step_metadata = self.tracked_metadata["steps"].get(step.name)
+        step_metadata = self.metadata["steps"].get(step.name)
+
+        if step_metadata != tracked_step_metadata:
+            logger.debug(f"Step '{step.name}': Tracked metadata does not match current step configuration.")
+            return False
+
+        return True
 
     def run(self) -> None:
         execution_order = list(self.sorter.static_order())
@@ -85,14 +160,37 @@ class Pipeline:
             step = self.steps[step_name]
             inputs = step.inputs
 
-            input_values = [self.steps[input_name].data for input_name in inputs]
-            if not input_values:
+            if step.input_path is not None:
+                if step.load_method is None:
+                    raise ValueError(f"Step '{step.name}': load_method must be provided to load input from file.")
+                logger.info(f"Step '{step.name}': Loading input from file,'{step.input_path}'.")
+                input_values = [step.load_method(step.input_path)]
+            elif step.input_data is not None:
+                logger.info(f"Step '{step.name}': Using provided input data.")
                 input_values = [step.input_data]
+            else:
+                logger.info(f"Step '{step.name}': Using provided input steps.")
+                input_values = [self.steps[input_name].data for input_name in inputs]
+
+            if not self.force_run:
+                if self._autoload_allowed(step):
+                    logger.info(
+                        f"Step '{step.name}': Output file '{step.output_path}' found. Loading output from file."
+                    )
+                    step.data = step.load_method(step.output_path)  # type: ignore
+                    continue
+                logger.info(
+                    f"Step '{step.name}': Output file '{step.output_path}' not found or outdated. Recomputing step."
+                )
 
             output = step.processor(*input_values, **step.params)
             step.data = output
-            if step.save_method is not None and step.save_path is not None:
-                step.save_method(output, step.save_path)
+            if step.save_method is not None and step.output_path is not None:
+                step.save_method(output, step.output_path)
+
+        if self.track_metadata and self.metadata_path is not None:
+            with open(self.metadata_path, "w") as f:
+                json.dump(self.metadata, f, indent=4)
 
     def get_output(self, name: str) -> Any:
         step = self.steps.get(name)

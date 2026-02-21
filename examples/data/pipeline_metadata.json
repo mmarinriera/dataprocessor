@@ -1,0 +1,33 @@
+{
+    "steps": {
+        "scaled": {
+            "processor": "scale",
+            "inputs": [],
+            "params": {
+                "factor": 2
+            },
+            "input_path": "./examples/data/input_sequence.csv",
+            "output_path": "./examples/data/scaled_output.csv"
+        },
+        "sorted": {
+            "processor": "sort",
+            "inputs": [
+                "scaled"
+            ],
+            "params": {},
+            "input_path": null,
+            "output_path": "./examples/data/sorted_output.csv"
+        },
+        "filtered": {
+            "processor": "filter_by_threshold",
+            "inputs": [
+                "sorted"
+            ],
+            "params": {
+                "threshold": 10
+            },
+            "input_path": null,
+            "output_path": "./examples/data/filtered_output.csv"
+        }
+    }
+}

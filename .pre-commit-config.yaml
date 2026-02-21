@@ -16,6 +16,7 @@ repos:
     hooks:
     -   id: check-yaml
     -   id: end-of-file-fixer
+        exclude: ^src/dataprocessor/examples/data/
     -   id: check-added-large-files
     -   id: debug-statements
         language_version: python3
