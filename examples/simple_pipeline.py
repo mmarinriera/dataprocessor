@@ -43,8 +43,11 @@ def filter_by_threshold(input: list[int], threshold: int) -> list[int]:
 
 def main():
 
-    # Pipeline 1: First step is initialised with data object.
-    pipeline_1 = Pipeline()
+    print("""Pipeline 1:
+    - First step is initialised with data object.
+    - No auto-loading of data files is enabled, so the steps will be re-run every time the pipeline is executed.
+    """)
+    pipeline_1 = Pipeline(force_run=True)
 
     pipeline_1.add_step(
         name="scaled",
@@ -74,16 +77,24 @@ def main():
     sorted = pipeline_1.get_output("sorted")
     filtered = pipeline_1.get_output("filtered")
 
-    print("Pipeline 1 results:")
-    print("Scaled:", scaled)
-    print("Sorted:", sorted)
-    print("Filtered:", filtered)
+    print(f"""
+Pipeline 1 results:
+    Scaled: {scaled}
+    Sorted: {sorted}
+    Filtered: {filtered}
+""")
 
     assert scaled == [10, 8, 6, 4, 2, 0], "Scaled output is incorrect"
     assert sorted == [0, 2, 4, 6, 8, 10], "Sorted output is incorrect"
     assert filtered == [6, 8, 10], "Filtered output is incorrect"
 
-    # Pipeline 2: First step is initialised by loading data from a file.
+    print("""*************************
+Pipeline 2:
+    - First step is initialised by loading data from a file.
+    - Auto-loading of data files is enabled by setting force_run=False and providing a metadata path.
+    The pipeline will check if the output files exist and load them instead of re-running the steps.
+""")
+
     pipeline_2 = Pipeline(force_run=False, metadata_path="./examples/data/pipeline_metadata.json")
 
     pipeline_2.add_step(
@@ -122,10 +133,12 @@ def main():
     sorted = pipeline_2.get_output("sorted")
     filtered = pipeline_2.get_output("filtered")
 
-    print("Pipeline 2 results:")
-    print("Scaled:", scaled)
-    print("Sorted:", sorted)
-    print("Filtered:", filtered)
+    print(f"""
+Pipeline 2 results:
+    Scaled: {scaled}
+    Sorted: {sorted}
+    Filtered: {filtered}
+""")
 
     assert scaled == [10, 12, 8, 16, 12, 2], "Scaled output is incorrect"
     assert sorted == [2, 8, 10, 12, 12, 16], "Sorted output is incorrect"

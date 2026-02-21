@@ -6,10 +6,13 @@ from graphlib import TopologicalSorter
 from pathlib import Path
 from typing import Any
 
+from dataprocessor.logger import get_logger
 from dataprocessor.utils import ValidationError
 from dataprocessor.utils import get_func_arg_type_annotations
 from dataprocessor.utils import get_func_required_args
 from dataprocessor.utils import get_func_return_type_annotation
+
+logger = get_logger()
 
 
 @dataclass
@@ -113,11 +116,11 @@ class Pipeline:
 
     def _autoload_allowed(self, step: Step) -> bool:
         if step.load_method is None or step.output_path is None:
-            print(f"Step '{step.name}': Autoload not allowed because load_method or output_path is not defined.")
+            logger.debug(f"Step '{step.name}': Autoload not allowed because load_method or output_path is not defined.")
             return False
 
         if not Path(step.output_path).exists():
-            print(f"Step '{step.name}': Output file '{step.output_path}' does not exist.")
+            logger.debug(f"Step '{step.name}': Output file '{step.output_path}' does not exist.")
             return False
 
         # Check that the output file is newer than all input files
@@ -125,19 +128,19 @@ class Pipeline:
         for input_name in step.inputs:
             input_step = self.steps[input_name]
             if input_step.output_path is None or not Path(input_step.output_path).exists():
-                print(f"input file not found. {input_step.output_path}")
+                logger.debug(f"input file not found. {input_step.output_path}")
                 return False
 
             input_mtime = Path(input_step.output_path).stat().st_mtime
             if input_mtime > output_mtime:
-                print(f"input file '{input_step.output_path}' is newer than output file '{step.output_path}'.")
+                logger.debug(f"input file '{input_step.output_path}' is newer than output file '{step.output_path}'.")
                 return False
 
         if not self.track_metadata:
             return True
 
         if self.tracked_metadata is None:
-            print(f"Step '{step.name}': No tracked metadata found, cannot validate autoload.")
+            logger.debug(f"Step '{step.name}': No tracked metadata found, cannot validate autoload.")
             return False
 
         # Check that tracked step metadata matches current step configuration
@@ -145,7 +148,7 @@ class Pipeline:
         step_metadata = self.metadata["steps"].get(step.name)
 
         if step_metadata != tracked_step_metadata:
-            print(f"Step '{step.name}': Tracked metadata does not match current step configuration.")
+            logger.debug(f"Step '{step.name}': Tracked metadata does not match current step configuration.")
             return False
 
         return True
@@ -160,21 +163,25 @@ class Pipeline:
             if step.input_path is not None:
                 if step.load_method is None:
                     raise ValueError(f"Step '{step.name}': load_method must be provided to load input from file.")
-                print(f"Step '{step.name}': Loading input from file,'{step.input_path}'.")
+                logger.info(f"Step '{step.name}': Loading input from file,'{step.input_path}'.")
                 input_values = [step.load_method(step.input_path)]
             elif step.input_data is not None:
-                print(f"Step '{step.name}': Using provided input data.")
+                logger.info(f"Step '{step.name}': Using provided input data.")
                 input_values = [step.input_data]
             else:
-                print(f"Step '{step.name}': Using provided input steps.")
+                logger.info(f"Step '{step.name}': Using provided input steps.")
                 input_values = [self.steps[input_name].data for input_name in inputs]
 
             if not self.force_run:
                 if self._autoload_allowed(step):
-                    print(f"Step '{step.name}': Output file '{step.output_path}' found. Loading output from file.")
+                    logger.info(
+                        f"Step '{step.name}': Output file '{step.output_path}' found. Loading output from file."
+                    )
                     step.data = step.load_method(step.output_path)  # type: ignore
                     continue
-                print(f"Step '{step.name}': Output file '{step.output_path}' not found or outdated. Recomputing step.")
+                logger.info(
+                    f"Step '{step.name}': Output file '{step.output_path}' not found or outdated. Recomputing step."
+                )
 
             output = step.processor(*input_values, **step.params)
             step.data = output
