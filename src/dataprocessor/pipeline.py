@@ -1,3 +1,4 @@
+import json
 from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field
@@ -38,10 +39,28 @@ class Step:
 class Pipeline:
     """A simple data processing pipeline that allows you to define steps with dependencies and execute them in the correct order."""
 
-    def __init__(self, force_run: bool = True) -> None:
+    def __init__(self, force_run: bool = True, metadata_path: str | Path | None = None) -> None:
         self.steps: dict[str, Step] = {}
         self.sorter: TopologicalSorter[str] = TopologicalSorter()
         self.force_run = force_run
+
+        self.metadata_path = Path(metadata_path).with_suffix(".json") if metadata_path is not None else None
+        self.track_metadata = metadata_path is not None
+        self.metadata: dict[str, dict[str, Any]] = {"steps": {}}
+        self.tracked_metadata: dict[str, dict[str, Any]] | None = None
+        if self.track_metadata and self.metadata_path is not None:
+            if self.metadata_path.exists():
+                with open(self.metadata_path) as f:
+                    self.tracked_metadata = json.load(f)
+
+    def _update_metadata(self, step: Step) -> None:
+        self.metadata["steps"][step.name] = {
+            "processor": getattr(step.processor, "__name__", "no_processor_name"),
+            "inputs": step.inputs,
+            "params": step.params,
+            "input_path": str(step.input_path) if step.input_path else None,
+            "output_path": str(step.output_path) if step.output_path else None,
+        }
 
     def add_step(
         self,
@@ -74,7 +93,7 @@ class Pipeline:
         if params is None:
             params = {}
 
-        self.steps[name] = Step(
+        step = Step(
             name=name,
             processor=processor,
             inputs=inputs,
@@ -86,7 +105,11 @@ class Pipeline:
             output_path=output_path,
         )
 
+        self.steps[name] = step
         self.sorter.add(name, *inputs)
+
+        if self.track_metadata:
+            self._update_metadata(step)
 
     def _autoload_allowed(self, step: Step) -> bool:
         if step.load_method is None or step.output_path is None:
@@ -109,6 +132,21 @@ class Pipeline:
             if input_mtime > output_mtime:
                 print(f"input file '{input_step.output_path}' is newer than output file '{step.output_path}'.")
                 return False
+
+        if not self.track_metadata:
+            return True
+
+        if self.tracked_metadata is None:
+            print(f"Step '{step.name}': No tracked metadata found, cannot validate autoload.")
+            return False
+
+        # Check that tracked step metadata matches current step configuration
+        tracked_step_metadata = self.tracked_metadata["steps"].get(step.name)
+        step_metadata = self.metadata["steps"].get(step.name)
+
+        if step_metadata != tracked_step_metadata:
+            print(f"Step '{step.name}': Tracked metadata does not match current step configuration.")
+            return False
 
         return True
 
@@ -142,6 +180,10 @@ class Pipeline:
             step.data = output
             if step.save_method is not None and step.output_path is not None:
                 step.save_method(output, step.output_path)
+
+        if self.track_metadata and self.metadata_path is not None:
+            with open(self.metadata_path, "w") as f:
+                json.dump(self.metadata, f, indent=4)
 
     def get_output(self, name: str) -> Any:
         step = self.steps.get(name)

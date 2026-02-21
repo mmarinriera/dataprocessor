@@ -84,7 +84,7 @@ def main():
     assert filtered == [6, 8, 10], "Filtered output is incorrect"
 
     # Pipeline 2: First step is initialised by loading data from a file.
-    pipeline_2 = Pipeline(force_run=False)
+    pipeline_2 = Pipeline(force_run=False, metadata_path="./examples/data/pipeline_metadata.json")
 
     pipeline_2.add_step(
         name="scaled",
