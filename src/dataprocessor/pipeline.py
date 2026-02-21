@@ -88,7 +88,7 @@ class Pipeline:
             inputs = []
 
         if not inputs and input_data is None and input_path is None:
-            raise ValueError(f"Step '{name}' must have either inputs, input data, or an input path.")
+            raise ValueError(f"Step '{name}': must have either inputs, input data, or an input path.")
 
         if input_path is not None and load_method is None:
             raise ValueError(f"Step '{name}': a load_method must be provided if input_path is specified.")
