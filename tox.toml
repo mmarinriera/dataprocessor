@@ -1,0 +1,30 @@
+requires = [ "tox>=4" ]
+envlist = [ "py310", "py311", "py312", "py313","coverage","prek" ]
+
+[env_run_base]
+description = "Running tests"
+runner = "uv-venv-lock-runner"
+with_dev = true
+dependency_groups = [ "dev" ]
+
+commands = [["coverage", "run", "-p", "-m", "pytest", "tests"]]
+
+[env.coverage]
+skip_install = true
+deps = ["coverage[toml]"]
+depends = ["3.*"]
+commands = [
+    ["coverage", "combine"],
+    ["coverage", "report", "--fail-under=10"],
+    ["coverage", "html"],
+]
+
+[env.prek]
+description = "Running pre-commit checks (formatting, linting, type checking) with prek."
+runner = "uv-venv-runner"
+skip_install = true
+deps = [ "prek==0.3.3" ]
+
+commands = [
+  [ "prek", "run", "--all-files", "--show-diff-on-failure" ],
+]
