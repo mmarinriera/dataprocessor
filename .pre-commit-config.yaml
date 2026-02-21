@@ -54,6 +54,7 @@ repos:
   rev: v1.2.2
   hooks:
     - id: tox-toml-fmt
+      files: tox.toml
 
 - repo: https://github.com/python-jsonschema/check-jsonschema
   rev: 0.36.0

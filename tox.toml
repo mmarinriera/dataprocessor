@@ -1,5 +1,5 @@
 requires = [ "tox>=4" ]
-envlist = [ "py310", "py311", "py312", "py313","coverage","prek" ]
+envlist = [ "py310", "py311", "py312", "py313", "coverage", "prek" ]
 
 [env_run_base]
 description = "Running tests"
@@ -7,16 +7,16 @@ runner = "uv-venv-lock-runner"
 with_dev = true
 dependency_groups = [ "dev" ]
 
-commands = [["coverage", "run", "-p", "-m", "pytest", "tests"]]
+commands = [ [ "coverage", "run", "-p", "-m", "pytest" ] ]
 
 [env.coverage]
 skip_install = true
-deps = ["coverage[toml]"]
-depends = ["3.*"]
+deps = [ "coverage[toml]" ]
+depends = [ "3.*" ]
 commands = [
-    ["coverage", "combine"],
-    ["coverage", "report", "--fail-under=10"],
-    ["coverage", "html"],
+  [ "coverage", "combine" ],
+  [ "coverage", "report", "--fail-under=10" ],
+  [ "coverage", "html" ],
 ]
 
 [env.prek]
