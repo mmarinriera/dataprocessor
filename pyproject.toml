@@ -19,6 +19,13 @@ classifiers = [
 ]
 dependencies = [  ]
 
+[dependency-groups]
+dev = [
+  "coverage[toml]>=7.13.4",
+  "pytest>=9",
+  "pytest-lazy-fixtures>=1.1.1",
+]
+
 [tool.setuptools.packages.find]
 where = [ "src" ]
 
@@ -33,6 +40,43 @@ fix-only = true
 lint.select = [ "ALL" ]
 lint.ignore = [ "COM812", "D203", "D212" ]
 lint.isort.force-single-line = true
+
+[tool.pytest]
+minversion = "9.0"
+addopts = [ "-s" ]
+testpaths = [
+  "tests",
+]
+log_cli = true
+log_cli_level = "DEBUG"
+
+[tool.coverage.run]
+branch = true
+source = [ "dataprocessor" ]
+
+[tool.coverage.report]
+# Regexes for lines to exclude from consideration
+exclude_also = [
+  # Don't complain about missing debug-only code:
+  "def __repr__",
+  "if self\\.debug",
+
+  # Don't complain if tests don't hit defensive assertion code:
+  "raise AssertionError",
+  "raise NotImplementedError",
+
+  # Don't complain if non-runnable code isn't run:
+  "if 0:",
+  "if __name__ == .__main__.:",
+
+  # Don't complain about abstract methods, they aren't run:
+  "@(abc\\.)?abstractmethod",
+]
+
+ignore_errors = true
+
+[tool.coverage.html]
+directory = ".coverage_html_report"
 
 [tool.mypy]
 check_untyped_defs = true
