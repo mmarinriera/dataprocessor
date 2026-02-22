@@ -161,10 +161,8 @@ class Pipeline:
             inputs = step.inputs
 
             if step.input_path is not None:
-                if step.load_method is None:
-                    raise ValueError(f"Step '{step.name}': load_method must be provided to load input from file.")
                 logger.info(f"Step '{step.name}': Loading input from file,'{step.input_path}'.")
-                input_values = [step.load_method(step.input_path)]
+                input_values = [step.load_method(step.input_path)]  # type: ignore
             elif step.input_data is not None:
                 logger.info(f"Step '{step.name}': Using provided input data.")
                 input_values = [step.input_data]
