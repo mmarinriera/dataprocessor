@@ -70,13 +70,26 @@ def test_pipeline_add_step(subtests: pytest.Subtests) -> None:
     step_data_1 = {
         "name": "step_1",
         "processor": lambda x: x,
-        "inputs": ["step_0"],
+        "inputs": "step_0",
         "output_path": "/some/output/path",
     }
     pipeline.add_step(**step_data_1)  # type: ignore
 
+    with subtests.test("Step single input converted to list."):
+        assert pipeline.steps["step_1"].inputs == ["step_0"]
+
     with subtests.test("Step Params dict is empty if not provided"):
         assert pipeline.steps["step_1"].params == {}
+
+    step_data_2 = {
+        "name": "step_2",
+        "processor": lambda x: x,
+        "inputs": ["step_0", "step_1"],
+        "output_path": "/some/output/path",
+    }
+    pipeline.add_step(**step_data_2)  # type: ignore
+    with subtests.test("Step multiple inputs remain as list."):
+        assert pipeline.steps["step_2"].inputs == ["step_0", "step_1"]
 
     with subtests.test("Check pipeline metadata"):
         target_metadata = {
@@ -95,6 +108,13 @@ def test_pipeline_add_step(subtests: pytest.Subtests) -> None:
                     "input_path": None,
                     "output_path": "/some/output/path",
                 },
+                "step_2": {
+                    "processor": "<lambda>",
+                    "params": {},
+                    "inputs": ["step_0", "step_1"],
+                    "input_path": None,
+                    "output_path": "/some/output/path",
+                },
             }
         }
         assert pipeline.metadata == target_metadata
@@ -103,21 +123,25 @@ def test_pipeline_add_step(subtests: pytest.Subtests) -> None:
         with pytest.raises(ValueError, match="Step 'step_0' already exists in the pipeline."):
             pipeline.add_step(**step_data_0)  # type: ignore
 
-    step_data_no_inputs = {"name": "step_2", "processor": lambda x: x, "params": {"some_param": 42}}
+    step_data_no_inputs = {"name": "step_no_inputs", "processor": lambda x: x, "params": {"some_param": 42}}
     with (
         subtests.test("Step without input_data"),
-        pytest.raises(ValueError, match="Step 'step_2': must have either inputs, input data, or an input path."),
+        pytest.raises(
+            ValueError, match="Step 'step_no_inputs': must have either inputs, input data, or an input path."
+        ),
     ):
         pipeline.add_step(**step_data_no_inputs)  # type: ignore
 
     step_no_load_method = {
-        "name": "step_3",
+        "name": "step_no_load_method",
         "processor": lambda x: x,
         "params": {"some_param": 42},
         "input_path": "/some/path",
     }
     with (
         subtests.test("Step with input_path but no load_method"),
-        pytest.raises(ValueError, match="Step 'step_3': a load_method must be provided if input_path is specified."),
+        pytest.raises(
+            ValueError, match="Step 'step_no_load_method': a load_method must be provided if input_path is specified."
+        ),
     ):
         pipeline.add_step(**step_no_load_method)  # type: ignore
