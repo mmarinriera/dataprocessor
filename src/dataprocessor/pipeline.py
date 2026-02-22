@@ -125,6 +125,13 @@ class Pipeline:
 
         # Check that the output file is newer than all input files
         output_mtime = Path(step.output_path).stat().st_mtime
+
+        if step.input_path is not None:
+            input_mtime = Path(step.input_path).stat().st_mtime
+            if input_mtime > output_mtime:
+                logger.debug(f"step input file '{step.input_path}' is newer than output file '{step.output_path}'.")
+                return False
+
         for input_name in step.inputs:
             input_step = self.steps[input_name]
             if input_step.output_path is None or not Path(input_step.output_path).exists():
@@ -133,7 +140,9 @@ class Pipeline:
 
             input_mtime = Path(input_step.output_path).stat().st_mtime
             if input_mtime > output_mtime:
-                logger.debug(f"input file '{input_step.output_path}' is newer than output file '{step.output_path}'.")
+                logger.debug(
+                    f"file from input step '{input_step.output_path}' is newer than output file '{step.output_path}'."
+                )
                 return False
 
         if not self.track_metadata:
