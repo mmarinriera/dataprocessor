@@ -7,7 +7,7 @@ from dataprocessor.pipeline import Pipeline
 from dataprocessor.pipeline import Step
 
 
-def test_step_init():
+def test_step_init() -> None:
     step = Step(
         name="test",
         processor=lambda x: x,
@@ -15,7 +15,7 @@ def test_step_init():
     step.data = 5
 
 
-def test_step_access_data_before_solve():
+def test_step_access_data_before_solve() -> None:
     step = Step(
         name="test",
         processor=lambda x: x,
@@ -32,7 +32,7 @@ def test_step_access_data_before_solve():
         (True, False),
     ],
 )
-def test_pipeline_init(track_metadata: bool, tracked_metadata_file: bool, tmp_path: Path):
+def test_pipeline_init(track_metadata: bool, tracked_metadata_file: bool, tmp_path: Path) -> None:
     metadata_path = tmp_path / "metadata.json"
     target_tracked_metadata = (
         {"steps": {"step_1": {"name": "step_1"}}} if track_metadata and tracked_metadata_file else None
@@ -47,9 +47,9 @@ def test_pipeline_init(track_metadata: bool, tracked_metadata_file: bool, tmp_pa
     assert pipeline.tracked_metadata == target_tracked_metadata
 
 
-def test_pipeline_add_step(subtests: pytest.Subtests):
+def test_pipeline_add_step(subtests: pytest.Subtests) -> None:
 
-    def some_processor(x):
+    def some_processor(x: list[int]) -> list[int]:
         return x
 
     pipeline = Pipeline(metadata_path="dummy_path.json")
@@ -59,13 +59,13 @@ def test_pipeline_add_step(subtests: pytest.Subtests):
         "params": {"some_param": 42},
         "input_data": [1, 2, 3],
     }
-    pipeline.add_step(**step_data_0)
+    pipeline.add_step(**step_data_0)  # type: ignore
 
     with subtests.test("Step in pipeline dict"):
         assert "step_0" in pipeline.steps
 
     with subtests.test("Step constructed correctly"):
-        assert pipeline.steps["step_0"] == Step(**step_data_0)
+        assert pipeline.steps["step_0"] == Step(**step_data_0)  # type: ignore
 
     step_data_1 = {
         "name": "step_1",
@@ -73,7 +73,7 @@ def test_pipeline_add_step(subtests: pytest.Subtests):
         "inputs": ["step_0"],
         "output_path": "/some/output/path",
     }
-    pipeline.add_step(**step_data_1)
+    pipeline.add_step(**step_data_1)  # type: ignore
 
     with subtests.test("Step Params dict is empty if not provided"):
         assert pipeline.steps["step_1"].params == {}
@@ -101,14 +101,14 @@ def test_pipeline_add_step(subtests: pytest.Subtests):
 
     with subtests.test("Duplicated step name raises error"):
         with pytest.raises(ValueError, match="Step 'step_0' already exists in the pipeline."):
-            pipeline.add_step(**step_data_0)
+            pipeline.add_step(**step_data_0)  # type: ignore
 
     step_data_no_inputs = {"name": "step_2", "processor": lambda x: x, "params": {"some_param": 42}}
     with (
         subtests.test("Step without input_data"),
         pytest.raises(ValueError, match="Step 'step_2': must have either inputs, input data, or an input path."),
     ):
-        pipeline.add_step(**step_data_no_inputs)
+        pipeline.add_step(**step_data_no_inputs)  # type: ignore
 
     step_no_load_method = {
         "name": "step_3",
@@ -120,4 +120,4 @@ def test_pipeline_add_step(subtests: pytest.Subtests):
         subtests.test("Step with input_path but no load_method"),
         pytest.raises(ValueError, match="Step 'step_3': a load_method must be provided if input_path is specified."),
     ):
-        pipeline.add_step(**step_no_load_method)
+        pipeline.add_step(**step_no_load_method)  # type: ignore

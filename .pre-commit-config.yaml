@@ -24,7 +24,7 @@ repos:
     rev: v1.19.1
     hooks:
     -   id: mypy
-        files: ^src/dataprocessor/
+        files: ^src/dataprocessor/|^tests
 
 -   repo: https://github.com/commitizen-tools/commitizen
     rev: v4.11.6
