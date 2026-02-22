@@ -280,6 +280,71 @@ def test_pipeline_run_autoload(tmp_path: Path, subtests: pytest.Subtests, caplog
     pipeline_3 = Pipeline(force_run=False, metadata_path=tmp_path / "metadata.json")
     pipeline_3.add_step(**step_0)  # type: ignore
     pipeline_3.add_step(**step_1)  # type: ignore
-    with subtests.test("Pipeline runs with force_run=False but input file changed, should re-run steps."):
+    with subtests.test("Pipeline runs with force_run=False but input file changed, should re-run steps"):
         pipeline_3.run()
         assert all(msg in caplog.text for msg in log_rerun)
+
+
+def _scale(x: list[int], factor: int) -> list[int]:
+    return [i * factor for i in x]
+
+
+def test_pipeline_autoload_metadata(
+    tmp_path: Path, subtests: pytest.Subtests, caplog: pytest.LogCaptureFixture
+) -> None:
+    output_path_0 = tmp_path / "step_0_output.csv"
+
+    step_0 = {
+        "name": "step_0",
+        "processor": _scale,
+        "input_data": [1, 2, 3],
+        "params": {"factor": 2},
+        "output_path": output_path_0,
+        "load_method": _load_sequence_csv,
+        "save_method": _save_sequence_csv,
+    }
+
+    pipeline_0 = Pipeline(force_run=False, metadata_path=tmp_path / "metadata.json")
+    pipeline_0.add_step(**step_0)  # type: ignore
+
+    log_autoload = (f"Step 'step_0': Output file '{output_path_0}' found. Loading output from file.",)
+    log_rerun = f"Step 'step_0': Output file '{output_path_0}' not found or outdated. Recomputing step."
+
+    with subtests.test("Pipeline runs for the first time, should execute all steps."):
+        pipeline_0.run()
+        assert log_rerun in caplog.text
+        assert pipeline_0.get_output("step_0") == [2, 4, 6]
+    caplog.clear()
+
+    step_0["params"] = {"factor": 3}
+    pipeline_1 = Pipeline(force_run=False, metadata_path=tmp_path / "metadata.json")
+    pipeline_1.add_step(**step_0)  # type: ignore
+    with subtests.test("Pipeline runs with force_run=False but params changed"):
+        pipeline_1.run()
+        assert log_rerun in caplog.text
+        assert pipeline_1.get_output("step_0") == [3, 6, 9]
+
+
+def test_pipeline_get_output(subtests: pytest.Subtests) -> None:
+    step_0 = {
+        "name": "step_0",
+        "processor": _return_same,
+        "input_data": [1, 2, 3],
+    }
+    pipeline = Pipeline()
+    pipeline.add_step(**step_0)  # type: ignore
+    with subtests.test("Attempting to get output before running pipeline"):
+        with pytest.raises(AttributeError, match="Step 'step_0': Attempted data retrieval before solving."):
+            pipeline.get_output("step_0")
+
+    with subtests.test("Attempting to get output from a step not in the pipeline."):
+        with pytest.raises(ValueError, match="Step 'step_1' does not exist in the pipeline."):
+            pipeline.get_output("step_1")
+
+    pipeline.run()
+    with subtests.test("Getting output after running pipeline."):
+        assert pipeline.get_output("step_0") == [1, 2, 3]
+
+
+def test_pipeline_validate_types() -> None:
+    pass
