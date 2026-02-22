@@ -1,3 +1,4 @@
+import csv
 import json
 from pathlib import Path
 
@@ -145,3 +146,140 @@ def test_pipeline_add_step(subtests: pytest.Subtests) -> None:
         ),
     ):
         pipeline.add_step(**step_no_load_method)  # type: ignore
+
+
+def _return_same(x: list[int]) -> list[int]:
+    return x
+
+
+def _load_sequence_dummy(_: str | Path) -> list[int]:
+    return [1, 2, 3, 4]
+
+
+@pytest.mark.parametrize(
+    "input_path, input_data, inputs, expected_output",
+    [
+        ("/some/path", [3, 2, 1], ["step_0"], [1, 2, 3, 4]),
+        ("/some/path", None, ["step_0"], [1, 2, 3, 4]),
+        ("/some/path", None, None, [1, 2, 3, 4]),
+        (None, [3, 2, 1], ["step_0"], [3, 2, 1]),
+        (None, [3, 2, 1], None, [3, 2, 1]),
+        (None, None, ["step_0"], [1, 2, 3]),
+    ],
+)
+def test_pipeline_run_input_precedence(
+    input_path: str,
+    input_data: list[int],
+    inputs: list[str],
+    expected_output: list[int],
+) -> None:
+
+    step_0 = {
+        "name": "step_0",
+        "processor": _return_same,
+        "input_data": [1, 2, 3],
+    }
+
+    step_1 = {
+        "name": "step_1",
+        "processor": _return_same,
+        "input_path": input_path,
+        "input_data": input_data,
+        "inputs": inputs,
+        "load_method": _load_sequence_dummy,
+    }
+    pipeline = Pipeline()
+    pipeline.add_step(**step_0)  # type: ignore
+    pipeline.add_step(**step_1)  # type: ignore
+    pipeline.run()
+    assert pipeline.get_output("step_1") == expected_output
+
+
+def _load_sequence_csv(filename: str | Path) -> list[int]:
+    """Loads a list of integers from a CSV file."""
+    with open(filename, newline="") as f:
+        reader = csv.reader(f)
+        return [int(x) for x in next(reader)]
+
+
+def _save_sequence_csv(input: list[int], filename: str | Path) -> None:
+    """Saves the input list as a CSV file."""
+    with open(filename, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(input)
+
+
+def test_pipeline_run_autoload(tmp_path: Path, subtests: pytest.Subtests, caplog: pytest.LogCaptureFixture) -> None:
+    caplog.set_level("DEBUG")
+    input_path = tmp_path / "input.csv"
+    with open(input_path, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow([1, 2, 3])
+
+    output_path_0 = tmp_path / "step_0_output.csv"
+    output_path_1 = tmp_path / "step_1_output.csv"
+
+    step_0 = {
+        "name": "step_0",
+        "processor": _return_same,
+        "input_path": input_path,
+        "output_path": output_path_0,
+        "load_method": _load_sequence_csv,
+        "save_method": _save_sequence_csv,
+    }
+
+    step_1 = {
+        "name": "step_1",
+        "processor": _return_same,
+        "inputs": "step_0",
+        "load_method": _load_sequence_csv,
+        "save_method": _save_sequence_csv,
+        "output_path": output_path_1,
+    }
+
+    pipeline_0 = Pipeline(force_run=True, metadata_path=tmp_path / "metadata.json")
+    pipeline_0.add_step(**step_0)  # type: ignore
+    pipeline_0.add_step(**step_1)  # type: ignore
+
+    log_rerun = [
+        f"Step 'step_0': Output file '{output_path_0}' not found or outdated. Recomputing step.",
+        f"Step 'step_1': Output file '{output_path_1}' not found or outdated. Recomputing step.",
+    ]
+
+    with subtests.test("Pipeline runs for the first time, should execute all steps."):
+        pipeline_0.run()
+        assert all(msg not in caplog.text for msg in log_rerun)
+    caplog.clear()
+
+    pipeline_1 = Pipeline(force_run=True, metadata_path=tmp_path / "metadata.json")
+    pipeline_1.add_step(**step_0)  # type: ignore
+    pipeline_1.add_step(**step_1)  # type: ignore
+    with subtests.test("Pipeline runs with force_run=True, should execute all steps."):
+        pipeline_1.run()
+        assert all(msg not in caplog.text for msg in log_rerun)
+    caplog.clear()
+
+    pipeline_2 = Pipeline(force_run=False, metadata_path=tmp_path / "metadata.json")
+    pipeline_2.add_step(**step_0)  # type: ignore
+    pipeline_2.add_step(**step_1)  # type: ignore
+
+    log_autoload = [
+        f"Step 'step_0': Output file '{output_path_0}' found. Loading output from file.",
+        f"Step 'step_1': Output file '{output_path_1}' found. Loading output from file.",
+    ]
+    with subtests.test("Pipeline runs with force_run=False, should auto-load."):
+        pipeline_2.run()
+        assert all(msg in caplog.text for msg in log_autoload)
+    caplog.clear()
+
+    # Overwrite input file to trigger re-run.
+    with open(input_path, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow([1, 2, 3])
+
+    pipeline_3 = Pipeline(force_run=False, metadata_path=tmp_path / "metadata.json")
+    pipeline_3.add_step(**step_0)  # type: ignore
+    pipeline_3.add_step(**step_1)  # type: ignore
+    with subtests.test("Pipeline runs with force_run=False but input file changed, should re-run steps."):
+        pipeline_3.run()
+        assert all(msg in caplog.text for msg in log_rerun)
