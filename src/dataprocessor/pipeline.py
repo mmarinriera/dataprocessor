@@ -191,6 +191,7 @@ class Pipeline:
         if self.track_metadata and self.metadata_path is not None:
             with open(self.metadata_path, "w") as f:
                 json.dump(self.metadata, f, indent=4)
+                f.write("\n")
 
     def get_output(self, name: str) -> Any:
         step = self.steps.get(name)
