@@ -197,8 +197,6 @@ class Pipeline:
         step = self.steps.get(name)
         if step is None:
             raise ValueError(f"Step '{name}' does not exist in the pipeline.")
-        if step.data is None:
-            raise ValueError(f"Step '{name}' has not been executed yet.")
         return step.data
 
     def validate_step_types(self) -> None:
