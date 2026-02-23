@@ -208,20 +208,27 @@ class Pipeline:
 
     def validate_step_types(self) -> None:
         for step in self.steps.values():
-            if not step.inputs:
-                continue
-
-            input_steps = [self.steps[input_name] for input_name in step.inputs]
-            input_step_out_types = [get_func_return_type_annotation(input_step.processor) for input_step in input_steps]
+            if step.input_path is not None:
+                input_types = [get_func_return_type_annotation(step.load_method)]  # type: ignore
+            elif step.input_data is not None:
+                # Type validation for input data literals not supported.
+                input_types = []
+            else:
+                input_steps = [self.steps[input_name] for input_name in step.inputs]
+                input_types = [get_func_return_type_annotation(input_step.processor) for input_step in input_steps]
             processor_arg_types = get_func_arg_type_annotations(step.processor)
-            if not all(t == u for t, u in zip(input_step_out_types, processor_arg_types.values())):
+            logger.debug(
+                f"Step '{step.name}': Inferred input types: {input_types} // Processor argument types: {processor_arg_types}"
+            )
+            if not all(t == u for t, u in zip(input_types, processor_arg_types.values())):
                 raise ValidationError(f"Step '{step.name}': Input types do not match processor inputs.")
 
             processor_arg_types = get_func_arg_type_annotations(step.processor)
 
             # Check that all required processor arguments are provided by either inputs or params
             required_arg_names = get_func_required_args(step.processor)
-            required_param_arg_names = required_arg_names[len(step.inputs) :]
+            n_inputs = len(step.inputs) or 1
+            required_param_arg_names = required_arg_names[n_inputs:]
             for arg_name in required_param_arg_names:
                 if arg_name not in step.params:
                     raise ValidationError(
