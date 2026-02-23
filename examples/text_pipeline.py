@@ -1,6 +1,8 @@
+import csv
 import logging
 import string
 from collections import Counter
+from pathlib import Path
 
 from dataprocessor import Pipeline
 from dataprocessor import get_logger
@@ -8,19 +10,33 @@ from dataprocessor import get_logger
 ######### I/O methods #########
 
 
-def save_text(data: list[str], filename: str) -> None:
+def save_text(data: list[str], filename: Path | str) -> None:
     """Saves a list of strings to a text file, one string per line."""
     with open(filename, "w") as f:
         f.writelines(line + "\n" for line in data)
 
 
-def load_text(filename: str) -> list[str]:
+def load_text(filename: Path | str) -> list[str]:
     """Loads a list of strings from a text file, one string per line."""
     with open(filename) as f:
         return [line.strip() for line in f]
 
 
-def save_word_freq(data: dict[str, int], filename: str) -> None:
+def save_tokens_csv(data: list[list[str]], filename: Path | str) -> None:
+    """Saves a list of lists of strings to a CSV file, one list per line."""
+    with open(filename, "w") as f:
+        writer = csv.writer(f)
+        writer.writerows(data)
+
+
+def load_tokens_csv(filename: Path | str) -> list[list[str]]:
+    """Loads a list of lists of strings from a CSV file, one list per line."""
+    with open(filename) as f:
+        reader = csv.reader(f)
+        return [row for row in reader]
+
+
+def save_word_freq(data: dict[str, int], filename: Path | str) -> None:
     """Saves a dictionary of word frequencies to a text file."""
     with open(filename, "w") as f:
         f.writelines(f"{word},{freq}\n" for word, freq in data.items())
@@ -54,8 +70,10 @@ def word_frequency(data: list[list[str]]) -> dict[str, int]:
 
 def main() -> None:
 
+    data_path = Path("./examples/data/text/")
+
     logger = get_logger()
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(logging.INFO)
 
     STOPWORDS = {"is", "a", "for", "this", "the", "and", "again", "let", "lets", "some"}
 
@@ -65,42 +83,50 @@ def main() -> None:
         "Hello again; let's process some text!",
     ]
 
-    # Set up pipeline
-    pipeline = Pipeline()
+    pipeline = Pipeline(force_run=False)
 
-    # Add steps
     pipeline.add_step(
         name="lowercase",
         processor=lowercase,
         input_data=input_data,
-        output_path="./examples/data/text/lowercase.txt",
+        output_path=data_path / "lowercase.txt",
         save_method=save_text,
         load_method=load_text,
     )
+
     pipeline.add_step(
         name="remove_punctuation",
         processor=remove_punctuation,
         inputs="lowercase",
-        output_path="./examples/data/text/no_punctuation.txt",
+        output_path=data_path / "no_punctuation.txt",
         save_method=save_text,
         load_method=load_text,
     )
+
     pipeline.add_step(
         name="tokenize",
         processor=tokenize,
         inputs="remove_punctuation",
+        output_path=data_path / "tokens.csv",
+        save_method=save_tokens_csv,
+        load_method=load_tokens_csv,
     )
+
     pipeline.add_step(
         name="remove_stopwords",
         processor=remove_stopwords,
         inputs="tokenize",
         params={"stopwords": STOPWORDS},
+        output_path=data_path / "tokens_filtered.csv",
+        save_method=save_tokens_csv,
+        load_method=load_tokens_csv,
     )
+
     pipeline.add_step(
         name="word_frequency",
         processor=word_frequency,
         inputs="remove_stopwords",
-        output_path="./examples/data/text/word_frequency.txt",
+        output_path=data_path / "word_frequency.txt",
         save_method=save_word_freq,
     )
 
