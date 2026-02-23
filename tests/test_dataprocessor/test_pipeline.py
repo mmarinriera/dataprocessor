@@ -1,11 +1,13 @@
 import csv
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 from dataprocessor.pipeline import Pipeline
 from dataprocessor.pipeline import Step
+from dataprocessor.utils import ValidationError
 
 
 def test_step_init() -> None:
@@ -307,7 +309,6 @@ def test_pipeline_autoload_metadata(
     pipeline_0 = Pipeline(force_run=False, metadata_path=tmp_path / "metadata.json")
     pipeline_0.add_step(**step_0)  # type: ignore
 
-    log_autoload = (f"Step 'step_0': Output file '{output_path_0}' found. Loading output from file.",)
     log_rerun = f"Step 'step_0': Output file '{output_path_0}' not found or outdated. Recomputing step."
 
     with subtests.test("Pipeline runs for the first time, should execute all steps."):
@@ -346,5 +347,82 @@ def test_pipeline_get_output(subtests: pytest.Subtests) -> None:
         assert pipeline.get_output("step_0") == [1, 2, 3]
 
 
-def test_pipeline_validate_types() -> None:
-    pass
+def test_pipeline_validate_types(subtests: pytest.Subtests) -> None:
+    step_0_data = {
+        "name": "step_0",
+        "processor": _return_same,
+        "input_data": [1, 2, 3],
+    }
+    step_1_data = {
+        "name": "step_1",
+        "processor": _scale,
+        "inputs": "step_0",
+        "params": {"factor": 2},
+    }
+    pipeline_0 = Pipeline()
+    pipeline_0.add_step(**step_0_data)  # type: ignore
+    pipeline_0.add_step(**step_1_data)  # type: ignore
+    pipeline_0.validate_step_types()
+
+    step_0_data = {
+        "name": "step_0",
+        "processor": _return_same,
+        "input_path": "/some/path.csv",
+        "load_method": _load_sequence_dummy,
+    }
+    pipeline_1 = Pipeline()
+    pipeline_1.add_step(**step_0_data)  # type: ignore
+    pipeline_1.add_step(**step_1_data)  # type: ignore
+    pipeline_1.validate_step_types()
+
+
+def _processor_str_sequence(x: list[str]) -> list[str]:
+    return x
+
+
+@pytest.mark.parametrize(
+    "step_data, expected_message",
+    [
+        (
+            {
+                "name": "step_invalid_input_file",
+                "processor": _processor_str_sequence,
+                "input_path": "some_file.csv",
+                "load_method": _load_sequence_dummy,
+            },
+            "Step 'step_invalid_input_file': Input types do not match processor inputs.",
+        ),
+        (
+            {"name": "step_invalid_input", "processor": _processor_str_sequence, "inputs": "step_0"},
+            "Step 'step_invalid_input': Input types do not match processor inputs.",
+        ),
+        (
+            {"name": "step_missing_required_param", "processor": _scale, "inputs": "step_0", "params": {}},
+            "Step 'step_missing_required_param': Required parameter 'factor' not provided in params.",
+        ),
+        (
+            {
+                "name": "step_invalid_param_name",
+                "processor": _scale,
+                "inputs": "step_0",
+                "params": {"factor": 1, "factorio": "3"},
+            },
+            "Step 'step_invalid_param_name': Parameter 'factorio' not found in processor arguments.",
+        ),
+        (
+            {"name": "step_invalid_param_type", "processor": _scale, "inputs": "step_0", "params": {"factor": "3"}},
+            "Step 'step_invalid_param_type': Parameter 'factor' expected type <class 'int'>, got <class 'str'>.",
+        ),
+    ],
+)
+def test_pipeline_validate_types_fails(step_data: dict[str, Any], expected_message: str) -> None:
+    step_0_data = {
+        "name": "step_0",
+        "processor": _return_same,
+        "input_data": [1, 2, 3],
+    }
+    pipeline = Pipeline()
+    pipeline.add_step(**step_0_data)  # type: ignore
+    pipeline.add_step(**step_data)  # type: ignore
+    with pytest.raises(ValidationError, match=expected_message):
+        pipeline.validate_step_types()
