@@ -16,7 +16,6 @@ repos:
     hooks:
     -   id: check-yaml
     -   id: end-of-file-fixer
-        exclude: ^src/dataprocessor/examples/data/
     -   id: check-added-large-files
     -   id: debug-statements
         language_version: python3
@@ -25,7 +24,7 @@ repos:
     rev: v1.19.1
     hooks:
     -   id: mypy
-        files: ^src/dataprocessor/
+        files: ^src/dataprocessor/|^tests
 
 -   repo: https://github.com/commitizen-tools/commitizen
     rev: v4.11.6
@@ -43,7 +42,7 @@ repos:
   rev: 0.8.3
   hooks:
     - id: pydoclint
-      files: ^src/dataset_processor/
+      files: ^src/dataprocessor/
 
 - repo: https://github.com/tox-dev/pyproject-fmt
   rev: v2.11.1
@@ -54,6 +53,7 @@ repos:
   rev: v1.2.2
   hooks:
     - id: tox-toml-fmt
+      files: tox.toml
 
 - repo: https://github.com/python-jsonschema/check-jsonschema
   rev: 0.36.0

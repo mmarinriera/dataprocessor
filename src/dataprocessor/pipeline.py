@@ -88,7 +88,7 @@ class Pipeline:
             inputs = []
 
         if not inputs and input_data is None and input_path is None:
-            raise ValueError(f"Step '{name}' must have either inputs, input data, or an input path.")
+            raise ValueError(f"Step '{name}': must have either inputs, input data, or an input path.")
 
         if input_path is not None and load_method is None:
             raise ValueError(f"Step '{name}': a load_method must be provided if input_path is specified.")
@@ -125,6 +125,13 @@ class Pipeline:
 
         # Check that the output file is newer than all input files
         output_mtime = Path(step.output_path).stat().st_mtime
+
+        if step.input_path is not None:
+            input_mtime = Path(step.input_path).stat().st_mtime
+            if input_mtime > output_mtime:
+                logger.debug(f"step input file '{step.input_path}' is newer than output file '{step.output_path}'.")
+                return False
+
         for input_name in step.inputs:
             input_step = self.steps[input_name]
             if input_step.output_path is None or not Path(input_step.output_path).exists():
@@ -133,7 +140,9 @@ class Pipeline:
 
             input_mtime = Path(input_step.output_path).stat().st_mtime
             if input_mtime > output_mtime:
-                logger.debug(f"input file '{input_step.output_path}' is newer than output file '{step.output_path}'.")
+                logger.debug(
+                    f"file from input step '{input_step.output_path}' is newer than output file '{step.output_path}'."
+                )
                 return False
 
         if not self.track_metadata:
@@ -161,10 +170,8 @@ class Pipeline:
             inputs = step.inputs
 
             if step.input_path is not None:
-                if step.load_method is None:
-                    raise ValueError(f"Step '{step.name}': load_method must be provided to load input from file.")
                 logger.info(f"Step '{step.name}': Loading input from file,'{step.input_path}'.")
-                input_values = [step.load_method(step.input_path)]
+                input_values = [step.load_method(step.input_path)]  # type: ignore
             elif step.input_data is not None:
                 logger.info(f"Step '{step.name}': Using provided input data.")
                 input_values = [step.input_data]
@@ -191,31 +198,37 @@ class Pipeline:
         if self.track_metadata and self.metadata_path is not None:
             with open(self.metadata_path, "w") as f:
                 json.dump(self.metadata, f, indent=4)
+                f.write("\n")
 
     def get_output(self, name: str) -> Any:
         step = self.steps.get(name)
         if step is None:
             raise ValueError(f"Step '{name}' does not exist in the pipeline.")
-        if step.data is None:
-            raise ValueError(f"Step '{name}' has not been executed yet.")
         return step.data
 
     def validate_step_types(self) -> None:
         for step in self.steps.values():
-            if not step.inputs:
-                continue
-
-            input_steps = [self.steps[input_name] for input_name in step.inputs]
-            input_step_out_types = [get_func_return_type_annotation(input_step.processor) for input_step in input_steps]
+            if step.input_path is not None:
+                input_types = [get_func_return_type_annotation(step.load_method)]  # type: ignore
+            elif step.input_data is not None:
+                # Type validation for input data literals not supported.
+                input_types = []
+            else:
+                input_steps = [self.steps[input_name] for input_name in step.inputs]
+                input_types = [get_func_return_type_annotation(input_step.processor) for input_step in input_steps]
             processor_arg_types = get_func_arg_type_annotations(step.processor)
-            if not all(t == u for t, u in zip(input_step_out_types, processor_arg_types.values())):
+            logger.debug(
+                f"Step '{step.name}': Inferred input types: {input_types} // Processor argument types: {processor_arg_types}"
+            )
+            if not all(t == u for t, u in zip(input_types, processor_arg_types.values())):
                 raise ValidationError(f"Step '{step.name}': Input types do not match processor inputs.")
 
             processor_arg_types = get_func_arg_type_annotations(step.processor)
 
             # Check that all required processor arguments are provided by either inputs or params
             required_arg_names = get_func_required_args(step.processor)
-            required_param_arg_names = required_arg_names[len(step.inputs) :]
+            n_inputs = len(step.inputs) or 1
+            required_param_arg_names = required_arg_names[n_inputs:]
             for arg_name in required_param_arg_names:
                 if arg_name not in step.params:
                     raise ValidationError(

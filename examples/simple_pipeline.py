@@ -1,7 +1,9 @@
 import csv
+import logging
 from pathlib import Path
 
 from dataprocessor import Pipeline
+from dataprocessor import get_logger
 
 ######### I/O methods #########
 
@@ -42,6 +44,9 @@ def filter_by_threshold(input: list[int], threshold: int) -> list[int]:
 
 
 def main():
+
+    logger = get_logger()
+    logger.setLevel(logging.DEBUG)
 
     print("""Pipeline 1:
     - First step is initialised with data object.
