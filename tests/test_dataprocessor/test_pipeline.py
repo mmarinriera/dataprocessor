@@ -9,6 +9,41 @@ from dataprocessor.pipeline import Pipeline
 from dataprocessor.pipeline import Step
 from dataprocessor.utils import ValidationError
 
+# Processors used in tests
+
+
+def _return_same(x: list[int]) -> list[int]:
+    return x
+
+
+def _load_sequence_dummy(_: str | Path) -> list[int]:
+    return [1, 2, 3, 4]
+
+
+def _load_sequence_csv(filename: str | Path) -> list[int]:
+    """Loads a list of integers from a CSV file."""
+    with open(filename, newline="") as f:
+        reader = csv.reader(f)
+        return [int(x) for x in next(reader)]
+
+
+def _save_sequence_csv(input: list[int], filename: str | Path) -> None:
+    """Saves the input list as a CSV file."""
+    with open(filename, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(input)
+
+
+def _scale(x: list[int], factor: int) -> list[int]:
+    return [i * factor for i in x]
+
+
+def _processor_str_sequence(x: list[str]) -> list[str]:
+    return x
+
+
+###########################
+
 
 def test_step_init() -> None:
     step = Step(
@@ -150,14 +185,6 @@ def test_pipeline_add_step(subtests: pytest.Subtests) -> None:
         pipeline.add_step(**step_no_load_method)  # type: ignore
 
 
-def _return_same(x: list[int]) -> list[int]:
-    return x
-
-
-def _load_sequence_dummy(_: str | Path) -> list[int]:
-    return [1, 2, 3, 4]
-
-
 @pytest.mark.parametrize(
     "input_path, input_data, inputs, expected_output",
     [
@@ -195,20 +222,6 @@ def test_pipeline_run_input_precedence(
     pipeline.add_step(**step_1)  # type: ignore
     pipeline.run()
     assert pipeline.get_output("step_1") == expected_output
-
-
-def _load_sequence_csv(filename: str | Path) -> list[int]:
-    """Loads a list of integers from a CSV file."""
-    with open(filename, newline="") as f:
-        reader = csv.reader(f)
-        return [int(x) for x in next(reader)]
-
-
-def _save_sequence_csv(input: list[int], filename: str | Path) -> None:
-    """Saves the input list as a CSV file."""
-    with open(filename, "w", newline="") as f:
-        writer = csv.writer(f)
-        writer.writerow(input)
 
 
 def test_pipeline_run_autoload(tmp_path: Path, subtests: pytest.Subtests, caplog: pytest.LogCaptureFixture) -> None:
@@ -287,10 +300,6 @@ def test_pipeline_run_autoload(tmp_path: Path, subtests: pytest.Subtests, caplog
         assert all(msg in caplog.text for msg in log_rerun)
 
 
-def _scale(x: list[int], factor: int) -> list[int]:
-    return [i * factor for i in x]
-
-
 def test_pipeline_autoload_metadata(
     tmp_path: Path, subtests: pytest.Subtests, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -347,7 +356,7 @@ def test_pipeline_get_output(subtests: pytest.Subtests) -> None:
         assert pipeline.get_output("step_0") == [1, 2, 3]
 
 
-def test_pipeline_validate_types(subtests: pytest.Subtests) -> None:
+def test_pipeline_validate_types() -> None:
     step_0_data = {
         "name": "step_0",
         "processor": _return_same,
@@ -374,10 +383,6 @@ def test_pipeline_validate_types(subtests: pytest.Subtests) -> None:
     pipeline_1.add_step(**step_0_data)  # type: ignore
     pipeline_1.add_step(**step_1_data)  # type: ignore
     pipeline_1.validate_step_types()
-
-
-def _processor_str_sequence(x: list[str]) -> list[str]:
-    return x
 
 
 @pytest.mark.parametrize(
