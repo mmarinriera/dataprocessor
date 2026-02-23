@@ -84,10 +84,19 @@ class Pipeline:
         self.errors: dict[str, BaseException] = {}
 
     def _update_metadata(self, step: Step) -> None:
+        # Ensure parameters that contain sets are JSON serialisable
+        # TODO: Consider adding other non-serialisable types.
+        serializable_params = {}
+        if step.params:
+            for k, v in step.params.items():
+                if isinstance(v, set) or isinstance(v, frozenset):
+                    v = list(v)
+                serializable_params[k] = v
+
         self.metadata["steps"][step.name] = {
             "processor": getattr(step.processor, "__name__", "no_processor_name"),
             "inputs": step.inputs,
-            "params": step.params,
+            "params": serializable_params,
             "input_path": str(step.input_path) if step.input_path else None,
             "output_path": str(step.output_path) if step.output_path else None,
         }
