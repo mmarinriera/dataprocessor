@@ -185,6 +185,17 @@ class Pipeline:
             sorter.add(step.name, *step.inputs)
         return sorter
 
+    def _failed_or_skipped_inputs(self, step: Step) -> bool:
+        blocked_inputs = [
+            input_name for input_name in step.inputs if input_name in self.failed_steps | self.skipped_steps
+        ]
+        if blocked_inputs:
+            logger.error(f"Step '{step.name}': Skipped because dependencies failed: {blocked_inputs}.")
+            self.skipped_steps.add(step.name)
+            return True
+
+        return False
+
     def _get_input_values(self, step: Step) -> list[Any]:
         if step.input_path is not None:
             logger.info(f"Step '{step.name}': Loading input from file,'{step.input_path}'.")
@@ -210,12 +221,8 @@ class Pipeline:
 
         for step_name in execution_order:
             step = self.steps[step_name]
-            blocked_inputs = [
-                input_name for input_name in step.inputs if input_name in self.failed_steps | self.skipped_steps
-            ]
-            if blocked_inputs:
-                logger.error(f"Step '{step.name}': Skipped because dependencies failed: {blocked_inputs}.")
-                self.skipped_steps.add(step_name)
+
+            if self._failed_or_skipped_inputs(step):
                 continue
 
             input_values = self._get_input_values(step)
@@ -232,7 +239,7 @@ class Pipeline:
                 self.errors[step_name] = exc
                 logger.exception(f"Step '{step.name}' failed.")
                 if fail_fast:
-                    raise RuntimeError(f"Step '{step.name}': failed during pipeline execution.") from exc
+                    raise RuntimeError(f"Step '{step.name}': Aborting pipeline execution due to step failure.") from exc
 
     def _run_parallel(
         self, mode: Literal["thread", "process"], max_workers: int | None, fail_fast: bool = False
@@ -243,18 +250,13 @@ class Pipeline:
         sorter = self._build_sorter()
         sorter.prepare()
         executor_cls = ThreadPoolExecutor if mode == "thread" else ProcessPoolExecutor
-        in_flight: dict[Future[Any], str] = {}
+        running: dict[Future[Any], str] = {}
 
         with executor_cls(max_workers=max_workers) as executor:
             while sorter.is_active():
                 for step_name in sorter.get_ready():
                     step = self.steps[step_name]
-                    blocked_inputs = [
-                        input_name for input_name in step.inputs if input_name in self.failed_steps | self.skipped_steps
-                    ]
-                    if blocked_inputs:
-                        logger.error(f"Step '{step.name}': Skipped because dependencies failed: {blocked_inputs}.")
-                        self.skipped_steps.add(step_name)
+                    if self._failed_or_skipped_inputs(step):
                         sorter.done(step_name)
                         continue
 
@@ -264,13 +266,13 @@ class Pipeline:
                         continue
 
                     future = executor.submit(step.processor, *input_values, **step.params)
-                    in_flight[future] = step_name
+                    running[future] = step_name
 
-                if not in_flight:
+                if not running:
                     continue
 
-                for future in as_completed(in_flight):
-                    step_name = in_flight.pop(future)
+                for future in as_completed(running):
+                    step_name = running.pop(future)
                     step = self.steps[step_name]
                     try:
                         output = future.result()
@@ -283,7 +285,7 @@ class Pipeline:
                         logger.exception(f"Step '{step.name}': failed to run.")
                         sorter.done(step_name)
                         if fail_fast:
-                            for pending in in_flight:
+                            for pending in running:
                                 pending.cancel()
                             raise RuntimeError(
                                 f"Step '{step.name}': Aborting pipeline execution due to step failure."
