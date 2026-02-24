@@ -6,8 +6,8 @@
             "params": {
                 "factor": 2
             },
-            "input_path": "./examples/data/input_sequence.csv",
-            "output_path": "./examples/data/scaled_output.csv"
+            "input_path": null,
+            "output_path": "./examples/data/output_1_scaled.csv"
         },
         "sorted": {
             "processor": "sort",
@@ -16,7 +16,7 @@
             ],
             "params": {},
             "input_path": null,
-            "output_path": "./examples/data/sorted_output.csv"
+            "output_path": "./examples/data/output_1_sorted.csv"
         },
         "filtered": {
             "processor": "filter_by_threshold",
@@ -24,10 +24,10 @@
                 "sorted"
             ],
             "params": {
-                "threshold": 10
+                "threshold": 5
             },
             "input_path": null,
-            "output_path": "./examples/data/filtered_output.csv"
+            "output_path": "./examples/data/output_1_filtered.csv"
         }
     }
 }

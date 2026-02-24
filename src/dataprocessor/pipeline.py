@@ -1,10 +1,17 @@
 import json
+import sys
 from collections.abc import Callable
+from concurrent.futures import Future
+from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import as_completed
 from dataclasses import dataclass
 from dataclasses import field
 from graphlib import TopologicalSorter
 from pathlib import Path
 from typing import Any
+from typing import Literal
+from typing import TypeAlias
 
 from dataprocessor.logger import get_logger
 from dataprocessor.utils import ValidationError
@@ -12,7 +19,23 @@ from dataprocessor.utils import get_func_arg_type_annotations
 from dataprocessor.utils import get_func_required_args
 from dataprocessor.utils import get_func_return_type_annotation
 
+if sys.version_info >= (3, 11):
+    TopologicalSorterStr: TypeAlias = TopologicalSorter[str]
+else:
+    TopologicalSorterStr: TypeAlias = TopologicalSorter
+
+
 logger = get_logger()
+
+
+class PipelineExecutionError(RuntimeError):
+    def __init__(self, failed_steps: list[str], skipped_steps: list[str]) -> None:
+        self.failed_steps = failed_steps
+        self.skipped_steps = skipped_steps
+        details = f"Pipeline failed. Failed steps: {failed_steps}"
+        if skipped_steps:
+            details = f"{details}. Skipped steps: {skipped_steps}"
+        super().__init__(details)
 
 
 @dataclass
@@ -44,7 +67,6 @@ class Pipeline:
 
     def __init__(self, force_run: bool = True, metadata_path: str | Path | None = None) -> None:
         self.steps: dict[str, Step] = {}
-        self.sorter: TopologicalSorter[str] = TopologicalSorter()
         self.force_run = force_run
 
         self.metadata_path = Path(metadata_path).with_suffix(".json") if metadata_path is not None else None
@@ -55,6 +77,10 @@ class Pipeline:
             if self.metadata_path.exists():
                 with open(self.metadata_path) as f:
                     self.tracked_metadata = json.load(f)
+
+        self.failed_steps: set[str] = set()
+        self.skipped_steps: set[str] = set()
+        self.errors: dict[str, BaseException] = {}
 
     def _update_metadata(self, step: Step) -> None:
         self.metadata["steps"][step.name] = {
@@ -109,7 +135,6 @@ class Pipeline:
         )
 
         self.steps[name] = step
-        self.sorter.add(name, *inputs)
 
         if self.track_metadata:
             self._update_metadata(step)
@@ -162,38 +187,134 @@ class Pipeline:
 
         return True
 
-    def run(self) -> None:
-        execution_order = list(self.sorter.static_order())
+    def _build_sorter(self) -> TopologicalSorterStr:
+        sorter: TopologicalSorterStr = TopologicalSorterStr()
+        for step in self.steps.values():
+            sorter.add(step.name, *step.inputs)
+        return sorter
+
+    def _failed_or_skipped_inputs(self, step: Step) -> bool:
+        blocked_inputs = [
+            input_name for input_name in step.inputs if input_name in self.failed_steps | self.skipped_steps
+        ]
+        if blocked_inputs:
+            logger.error(f"Step '{step.name}': Skipped because dependencies failed: {blocked_inputs}.")
+            self.skipped_steps.add(step.name)
+            return True
+
+        return False
+
+    def _get_input_values(self, step: Step) -> list[Any]:
+        if step.input_path is not None:
+            logger.info(f"Step '{step.name}': Loading input from file,'{step.input_path}'.")
+            return [step.load_method(step.input_path)]  # type: ignore
+        if step.input_data is not None:
+            logger.info(f"Step '{step.name}': Using provided input data.")
+            return [step.input_data]
+        logger.info(f"Step '{step.name}': Using provided input steps.")
+        return [self.steps[input_name].data for input_name in step.inputs]
+
+    def _attempt_output_load(self, step: Step) -> bool:
+        if self.force_run:
+            return False
+        if self._autoload_allowed(step):
+            logger.info(f"Step '{step.name}': Output file '{step.output_path}' found. Loading output from file.")
+            step.data = step.load_method(step.output_path)  # type: ignore
+            return True
+        logger.info(f"Step '{step.name}': Output file '{step.output_path}' not found or outdated. Recomputing step.")
+        return False
+
+    def _run_serial(self, fail_fast: bool) -> None:
+        execution_order = list(self._build_sorter().static_order())
 
         for step_name in execution_order:
             step = self.steps[step_name]
-            inputs = step.inputs
 
-            if step.input_path is not None:
-                logger.info(f"Step '{step.name}': Loading input from file,'{step.input_path}'.")
-                input_values = [step.load_method(step.input_path)]  # type: ignore
-            elif step.input_data is not None:
-                logger.info(f"Step '{step.name}': Using provided input data.")
-                input_values = [step.input_data]
-            else:
-                logger.info(f"Step '{step.name}': Using provided input steps.")
-                input_values = [self.steps[input_name].data for input_name in inputs]
+            if self._failed_or_skipped_inputs(step):
+                continue
 
-            if not self.force_run:
-                if self._autoload_allowed(step):
-                    logger.info(
-                        f"Step '{step.name}': Output file '{step.output_path}' found. Loading output from file."
-                    )
-                    step.data = step.load_method(step.output_path)  # type: ignore
+            input_values = self._get_input_values(step)
+            if self._attempt_output_load(step):
+                continue
+
+            try:
+                output = step.processor(*input_values, **step.params)
+                step.data = output
+                if step.save_method is not None and step.output_path is not None:
+                    step.save_method(output, step.output_path)
+            except BaseException as exc:
+                self.failed_steps.add(step_name)
+                self.errors[step_name] = exc
+                logger.exception(f"Step '{step.name}' failed.")
+                if fail_fast:
+                    raise RuntimeError(f"Step '{step.name}': Aborting pipeline execution due to step failure.") from exc
+
+    def _run_parallel(
+        self, mode: Literal["thread", "process"], max_workers: int | None, fail_fast: bool = False
+    ) -> None:
+        if mode not in {"thread", "process"}:
+            raise ValueError(f"Invalid parallel run mode '{mode}'. Expected one of: thread, process.")
+
+        sorter = self._build_sorter()
+        sorter.prepare()
+        executor_cls = ThreadPoolExecutor if mode == "thread" else ProcessPoolExecutor
+        running: dict[Future[Any], str] = {}
+
+        with executor_cls(max_workers=max_workers) as executor:
+            while sorter.is_active():
+                for step_name in sorter.get_ready():
+                    step = self.steps[step_name]
+                    if self._failed_or_skipped_inputs(step):
+                        sorter.done(step_name)
+                        continue
+
+                    input_values = self._get_input_values(step)
+                    if self._attempt_output_load(step):
+                        sorter.done(step_name)
+                        continue
+
+                    future = executor.submit(step.processor, *input_values, **step.params)
+                    running[future] = step_name
+
+                logger.debug(f"Steps running in parallel: {list(running.values())}")
+                if not running:
                     continue
-                logger.info(
-                    f"Step '{step.name}': Output file '{step.output_path}' not found or outdated. Recomputing step."
-                )
 
-            output = step.processor(*input_values, **step.params)
-            step.data = output
-            if step.save_method is not None and step.output_path is not None:
-                step.save_method(output, step.output_path)
+                for future in as_completed(running):
+                    step_name = running.pop(future)
+                    step = self.steps[step_name]
+                    try:
+                        output = future.result()
+                        step.data = output
+                        if step.save_method is not None and step.output_path is not None:
+                            step.save_method(output, step.output_path)
+                    except BaseException as exc:
+                        self.failed_steps.add(step_name)
+                        self.errors[step_name] = exc
+                        logger.exception(f"Step '{step.name}': failed to run.")
+                        sorter.done(step_name)
+                        if fail_fast:
+                            for pending in running:
+                                pending.cancel()
+                            raise RuntimeError(
+                                f"Step '{step.name}': Aborting pipeline execution due to step failure."
+                            ) from exc
+                        continue
+                    sorter.done(step_name)
+
+    def run(
+        self,
+        parallel: Literal["thread", "process"] | None = None,
+        max_workers: int | None = None,
+        fail_fast: bool = True,
+    ) -> None:
+        if parallel is None:
+            self._run_serial(fail_fast=fail_fast)
+        else:
+            self._run_parallel(mode=parallel, max_workers=max_workers, fail_fast=fail_fast)
+
+        if self.errors:
+            raise PipelineExecutionError(failed_steps=sorted(self.errors), skipped_steps=sorted(self.skipped_steps))
 
         if self.track_metadata and self.metadata_path is not None:
             with open(self.metadata_path, "w") as f:
