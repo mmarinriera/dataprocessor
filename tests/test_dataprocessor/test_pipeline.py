@@ -1,5 +1,6 @@
 import csv
 import json
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -333,6 +334,38 @@ def test_pipeline_autoload_metadata(
         pipeline_1.run()
         assert log_rerun in caplog.text
         assert pipeline_1.get_output("step_0") == [3, 6, 9]
+
+
+def test_pipeline_run_parallel_thread_mode() -> None:
+    branch_sync = threading.Barrier(2)
+
+    def source(x: int) -> int:
+        return x
+
+    def branch(x: int, increment: int) -> int:
+        branch_sync.wait(timeout=1)
+        return x + increment
+
+    def merge(a: int, b: int) -> int:
+        return a + b
+
+    pipeline = Pipeline()
+    pipeline.add_step(name="source", processor=source, input_data=1)
+    pipeline.add_step(name="left", processor=branch, inputs="source", params={"increment": 1})
+    pipeline.add_step(name="right", processor=branch, inputs="source", params={"increment": 2})
+    pipeline.add_step(name="merge", processor=merge, inputs=["left", "right"])
+
+    pipeline.run(parallel=True, mode="thread", max_workers=2)
+
+    assert pipeline.get_output("merge") == 5
+
+
+def test_pipeline_run_parallel_invalid_mode() -> None:
+    pipeline = Pipeline()
+    pipeline.add_step(name="step", processor=lambda x: x, input_data=[1, 2, 3])
+
+    with pytest.raises(ValueError, match="Invalid mode 'invalid'"):
+        pipeline.run(parallel=True, mode="invalid")  # type: ignore[arg-type]
 
 
 def test_pipeline_get_output(subtests: pytest.Subtests) -> None:

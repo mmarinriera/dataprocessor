@@ -1,10 +1,16 @@
 import json
 from collections.abc import Callable
+from concurrent.futures import FIRST_COMPLETED
+from concurrent.futures import Future
+from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import wait
 from dataclasses import dataclass
 from dataclasses import field
 from graphlib import TopologicalSorter
 from pathlib import Path
 from typing import Any
+from typing import Literal
 
 from dataprocessor.logger import get_logger
 from dataprocessor.utils import ValidationError
@@ -162,38 +168,94 @@ class Pipeline:
 
         return True
 
-    def run(self) -> None:
-        execution_order = list(self.sorter.static_order())
+    def _build_sorter(self) -> TopologicalSorter[str]:
+        sorter: TopologicalSorter[str] = TopologicalSorter()
+        for step in self.steps.values():
+            sorter.add(step.name, *step.inputs)
+        return sorter
 
-        for step_name in execution_order:
-            step = self.steps[step_name]
-            inputs = step.inputs
+    def _get_input_values(self, step: Step) -> list[Any]:
+        inputs = step.inputs
 
-            if step.input_path is not None:
-                logger.info(f"Step '{step.name}': Loading input from file,'{step.input_path}'.")
-                input_values = [step.load_method(step.input_path)]  # type: ignore
-            elif step.input_data is not None:
-                logger.info(f"Step '{step.name}': Using provided input data.")
-                input_values = [step.input_data]
-            else:
-                logger.info(f"Step '{step.name}': Using provided input steps.")
-                input_values = [self.steps[input_name].data for input_name in inputs]
+        if step.input_path is not None:
+            logger.info(f"Step '{step.name}': Loading input from file,'{step.input_path}'.")
+            return [step.load_method(step.input_path)]  # type: ignore
+        if step.input_data is not None:
+            logger.info(f"Step '{step.name}': Using provided input data.")
+            return [step.input_data]
+        logger.info(f"Step '{step.name}': Using provided input steps.")
+        return [self.steps[input_name].data for input_name in inputs]
 
-            if not self.force_run:
-                if self._autoload_allowed(step):
+    def run(
+        self,
+        parallel: bool = False,
+        mode: Literal["thread", "process"] = "thread",
+        max_workers: int | None = None,
+    ) -> None:
+        if not parallel:
+            execution_order = list(self._build_sorter().static_order())
+
+            for step_name in execution_order:
+                step = self.steps[step_name]
+                input_values = self._get_input_values(step)
+
+                if not self.force_run:
+                    if self._autoload_allowed(step):
+                        logger.info(
+                            f"Step '{step.name}': Output file '{step.output_path}' found. Loading output from file."
+                        )
+                        step.data = step.load_method(step.output_path)  # type: ignore
+                        continue
                     logger.info(
-                        f"Step '{step.name}': Output file '{step.output_path}' found. Loading output from file."
+                        f"Step '{step.name}': Output file '{step.output_path}' not found or outdated. Recomputing step."
                     )
-                    step.data = step.load_method(step.output_path)  # type: ignore
-                    continue
-                logger.info(
-                    f"Step '{step.name}': Output file '{step.output_path}' not found or outdated. Recomputing step."
-                )
 
-            output = step.processor(*input_values, **step.params)
-            step.data = output
-            if step.save_method is not None and step.output_path is not None:
-                step.save_method(output, step.output_path)
+                output = step.processor(*input_values, **step.params)
+                step.data = output
+                if step.save_method is not None and step.output_path is not None:
+                    step.save_method(output, step.output_path)
+        else:
+            if mode not in {"thread", "process"}:
+                raise ValueError(f"Invalid mode '{mode}'. Expected one of: thread, process.")
+
+            sorter = self._build_sorter()
+            sorter.prepare()
+            executor_cls = ThreadPoolExecutor if mode == "thread" else ProcessPoolExecutor
+            in_flight: dict[Future[Any], str] = {}
+
+            with executor_cls(max_workers=max_workers) as executor:
+                while sorter.is_active():
+                    for step_name in sorter.get_ready():
+                        step = self.steps[step_name]
+                        input_values = self._get_input_values(step)
+
+                        if not self.force_run:
+                            if self._autoload_allowed(step):
+                                logger.info(
+                                    f"Step '{step.name}': Output file '{step.output_path}' found. Loading output from file."
+                                )
+                                step.data = step.load_method(step.output_path)  # type: ignore
+                                sorter.done(step_name)
+                                continue
+                            logger.info(
+                                f"Step '{step.name}': Output file '{step.output_path}' not found or outdated. Recomputing step."
+                            )
+
+                        future = executor.submit(step.processor, *input_values, **step.params)
+                        in_flight[future] = step_name
+
+                    if not in_flight:
+                        continue
+
+                    done_futures, _ = wait(in_flight, return_when=FIRST_COMPLETED)
+                    for future in done_futures:
+                        step_name = in_flight.pop(future)
+                        step = self.steps[step_name]
+                        output = future.result()
+                        step.data = output
+                        if step.save_method is not None and step.output_path is not None:
+                            step.save_method(output, step.output_path)
+                        sorter.done(step_name)
 
         if self.track_metadata and self.metadata_path is not None:
             with open(self.metadata_path, "w") as f:
