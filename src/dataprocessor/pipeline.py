@@ -268,6 +268,7 @@ class Pipeline:
                     future = executor.submit(step.processor, *input_values, **step.params)
                     running[future] = step_name
 
+                logger.debug(f"Steps running in parallel: {list(running.values())}")
                 if not running:
                     continue
 
