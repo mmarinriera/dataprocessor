@@ -90,7 +90,7 @@ class Pipeline:
         if step.params:
             for k, v in step.params.items():
                 if isinstance(v, set) or isinstance(v, frozenset):
-                    v = list(v)
+                    v = sorted(list(v))
                 serializable_params[k] = v
 
         self.metadata["steps"][step.name] = {
