@@ -1,10 +1,9 @@
 import json
 from collections.abc import Callable
-from concurrent.futures import FIRST_COMPLETED
 from concurrent.futures import Future
 from concurrent.futures import ProcessPoolExecutor
 from concurrent.futures import ThreadPoolExecutor
-from concurrent.futures import wait
+from concurrent.futures import as_completed
 from dataclasses import dataclass
 from dataclasses import field
 from graphlib import TopologicalSorter
@@ -295,8 +294,7 @@ class Pipeline:
                     if not in_flight:
                         continue
 
-                    done_futures, _ = wait(in_flight, return_when=FIRST_COMPLETED)
-                    for future in done_futures:
+                    for future in as_completed(in_flight):
                         step_name = in_flight.pop(future)
                         step = self.steps[step_name]
                         try:
