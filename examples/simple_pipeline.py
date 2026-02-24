@@ -184,7 +184,7 @@ Pipeline 2:
     )
 
     pipeline_2.validate_step_types()
-    pipeline_2.run(parallel=True, mode="process", max_workers=2, fail_fast=False)
+    pipeline_2.run(parallel="process", max_workers=2, fail_fast=False)
 
     sorted = pipeline_2.get_output("sorted")
     even_filtered = pipeline_2.get_output("even_filtered")

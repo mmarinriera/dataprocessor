@@ -296,15 +296,14 @@ class Pipeline:
 
     def run(
         self,
-        parallel: bool = False,
-        mode: Literal["thread", "process"] = "thread",
+        parallel: Literal["thread", "process"] | None = None,
         max_workers: int | None = None,
         fail_fast: bool = True,
     ) -> None:
-        if not parallel:
+        if parallel is None:
             self._run_serial(fail_fast=fail_fast)
         else:
-            self._run_parallel(mode=mode, max_workers=max_workers, fail_fast=fail_fast)
+            self._run_parallel(mode=parallel, max_workers=max_workers, fail_fast=fail_fast)
 
         if self.errors:
             raise PipelineExecutionError(failed_steps=sorted(self.errors), skipped_steps=sorted(self.skipped_steps))
