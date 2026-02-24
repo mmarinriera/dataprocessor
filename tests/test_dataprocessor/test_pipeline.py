@@ -365,7 +365,7 @@ def test_pipeline_run_parallel_invalid_mode() -> None:
     pipeline = Pipeline()
     pipeline.add_step(name="step", processor=lambda x: x, input_data=[1, 2, 3])
 
-    with pytest.raises(ValueError, match="Invalid mode 'invalid'"):
+    with pytest.raises(ValueError, match="Invalid parallel run mode 'invalid'. Expected one of: thread, process."):
         pipeline.run(parallel=True, mode="invalid")  # type: ignore[arg-type]
 
 
@@ -380,7 +380,7 @@ def test_pipeline_run_fail_fast_true_default() -> None:
     pipeline.add_step(name="source", processor=source, input_data=1)
     pipeline.add_step(name="fails", processor=raises, inputs="source")
 
-    with pytest.raises(RuntimeError, match="Step 'fails' failed during pipeline execution."):
+    with pytest.raises(RuntimeError, match="Step 'fails': failed during pipeline execution."):
         pipeline.run()
 
 
