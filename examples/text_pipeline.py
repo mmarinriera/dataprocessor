@@ -62,9 +62,9 @@ def remove_stopwords(data: list[list[str]], stopwords: set[str]) -> list[list[st
     return [[w for w in words if w not in stopwords] for words in data]
 
 
-def word_frequency(data: list[list[str]]) -> dict[str, int]:
+def word_frequency(data: list[list[str]], most_common: int = 5) -> dict[str, int]:
     all_words = [w for words in data for w in words]
-    items: dict[str, int] = dict(Counter(all_words))
+    items: dict[str, int] = dict(Counter(all_words).most_common(most_common))
     return items
 
 
@@ -75,20 +75,39 @@ def main() -> None:
     logger = get_logger()
     logger.setLevel(logging.INFO)
 
-    STOPWORDS = {"is", "a", "for", "this", "the", "and", "again", "let", "lets", "some"}
-
-    input_data = [
-        "Hello, world! This is a test.",
-        "Python is great for text processing.",
-        "Hello again; let's process some text!",
-    ]
+    STOPWORDS = {
+        "is",
+        "are",
+        "a",
+        "for",
+        "this",
+        "the",
+        "and",
+        "again",
+        "let",
+        "lets",
+        "some",
+        "they",
+        "to",
+        "from",
+        "with",
+        "of",
+        "in",
+        "by",
+        "that",
+        "their",
+        "than",
+        "it",
+        "as",
+        "not",
+    }
 
     pipeline = Pipeline(force_run=False, metadata_path=data_path / "pipeline_metadata.json")
 
     pipeline.add_step(
         name="lowercase",
         processor=lowercase,
-        input_data=input_data,
+        input_path=data_path / "input.txt",
         output_path=data_path / "lowercase.txt",
         save_method=save_text,
         load_method=load_text,
@@ -125,6 +144,7 @@ def main() -> None:
     pipeline.add_step(
         name="word_frequency",
         processor=word_frequency,
+        params={"most_common": 10},
         inputs="remove_stopwords",
         output_path=data_path / "word_frequency.txt",
         save_method=save_word_freq,

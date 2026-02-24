@@ -4,7 +4,7 @@
             "processor": "lowercase",
             "inputs": [],
             "params": {},
-            "input_path": null,
+            "input_path": "examples/data/text/input.txt",
             "output_path": "examples/data/text/lowercase.txt"
         },
         "remove_punctuation": {
@@ -32,16 +32,30 @@
             ],
             "params": {
                 "stopwords": [
-                    "a",
+                    "to",
+                    "from",
+                    "they",
+                    "than",
+                    "is",
+                    "of",
+                    "their",
+                    "it",
+                    "are",
+                    "with",
                     "some",
-                    "let",
-                    "lets",
-                    "and",
-                    "this",
+                    "a",
                     "again",
-                    "the",
+                    "let",
+                    "that",
                     "for",
-                    "is"
+                    "by",
+                    "and",
+                    "not",
+                    "in",
+                    "the",
+                    "this",
+                    "as",
+                    "lets"
                 ]
             },
             "input_path": null,
@@ -52,7 +66,9 @@
             "inputs": [
                 "remove_stopwords"
             ],
-            "params": {},
+            "params": {
+                "most_common": 10
+            },
             "input_path": null,
             "output_path": "examples/data/text/word_frequency.txt"
         }
