@@ -21,6 +21,16 @@ from dataprocessor.utils import get_func_return_type_annotation
 logger = get_logger()
 
 
+class PipelineExecutionError(RuntimeError):
+    def __init__(self, failed_steps: list[str], skipped_steps: list[str]) -> None:
+        self.failed_steps = failed_steps
+        self.skipped_steps = skipped_steps
+        details = f"Pipeline failed. Failed steps: {failed_steps}"
+        if skipped_steps:
+            details = f"{details}. Skipped steps: {skipped_steps}"
+        super().__init__(details)
+
+
 @dataclass
 class Step:
     name: str
@@ -191,29 +201,47 @@ class Pipeline:
         parallel: bool = False,
         mode: Literal["thread", "process"] = "thread",
         max_workers: int | None = None,
+        fail_fast: bool = True,
     ) -> None:
+        failed_steps: set[str] = set()
+        skipped_steps: set[str] = set()
+        errors: dict[str, BaseException] = {}
+
         if not parallel:
             execution_order = list(self._build_sorter().static_order())
 
             for step_name in execution_order:
                 step = self.steps[step_name]
-                input_values = self._get_input_values(step)
+                blocked_inputs = [input_name for input_name in step.inputs if input_name in failed_steps | skipped_steps]
+                if blocked_inputs:
+                    logger.error(f"Step '{step.name}': Skipped because dependencies failed: {blocked_inputs}.")
+                    skipped_steps.add(step_name)
+                    continue
 
-                if not self.force_run:
-                    if self._autoload_allowed(step):
+                try:
+                    input_values = self._get_input_values(step)
+
+                    if not self.force_run:
+                        if self._autoload_allowed(step):
+                            logger.info(
+                                f"Step '{step.name}': Output file '{step.output_path}' found. Loading output from file."
+                            )
+                            step.data = step.load_method(step.output_path)  # type: ignore
+                            continue
                         logger.info(
-                            f"Step '{step.name}': Output file '{step.output_path}' found. Loading output from file."
+                            f"Step '{step.name}': Output file '{step.output_path}' not found or outdated. Recomputing step."
                         )
-                        step.data = step.load_method(step.output_path)  # type: ignore
-                        continue
-                    logger.info(
-                        f"Step '{step.name}': Output file '{step.output_path}' not found or outdated. Recomputing step."
-                    )
 
-                output = step.processor(*input_values, **step.params)
-                step.data = output
-                if step.save_method is not None and step.output_path is not None:
-                    step.save_method(output, step.output_path)
+                    output = step.processor(*input_values, **step.params)
+                    step.data = output
+                    if step.save_method is not None and step.output_path is not None:
+                        step.save_method(output, step.output_path)
+                except BaseException as exc:
+                    failed_steps.add(step_name)
+                    errors[step_name] = exc
+                    logger.exception(f"Step '{step.name}' failed.")
+                    if fail_fast:
+                        raise RuntimeError(f"Step '{step.name}' failed during pipeline execution.") from exc
         else:
             if mode not in {"thread", "process"}:
                 raise ValueError(f"Invalid mode '{mode}'. Expected one of: thread, process.")
@@ -227,19 +255,39 @@ class Pipeline:
                 while sorter.is_active():
                     for step_name in sorter.get_ready():
                         step = self.steps[step_name]
-                        input_values = self._get_input_values(step)
+                        blocked_inputs = [
+                            input_name for input_name in step.inputs if input_name in failed_steps | skipped_steps
+                        ]
+                        if blocked_inputs:
+                            logger.error(f"Step '{step.name}': Skipped because dependencies failed: {blocked_inputs}.")
+                            skipped_steps.add(step_name)
+                            sorter.done(step_name)
+                            continue
 
-                        if not self.force_run:
-                            if self._autoload_allowed(step):
+                        try:
+                            input_values = self._get_input_values(step)
+
+                            if not self.force_run:
+                                if self._autoload_allowed(step):
+                                    logger.info(
+                                        f"Step '{step.name}': Output file '{step.output_path}' found. Loading output from file."
+                                    )
+                                    step.data = step.load_method(step.output_path)  # type: ignore
+                                    sorter.done(step_name)
+                                    continue
                                 logger.info(
-                                    f"Step '{step.name}': Output file '{step.output_path}' found. Loading output from file."
+                                    f"Step '{step.name}': Output file '{step.output_path}' not found or outdated. Recomputing step."
                                 )
-                                step.data = step.load_method(step.output_path)  # type: ignore
-                                sorter.done(step_name)
-                                continue
-                            logger.info(
-                                f"Step '{step.name}': Output file '{step.output_path}' not found or outdated. Recomputing step."
-                            )
+                        except BaseException as exc:
+                            failed_steps.add(step_name)
+                            errors[step_name] = exc
+                            logger.exception(f"Step '{step.name}' failed.")
+                            sorter.done(step_name)
+                            if fail_fast:
+                                for pending in in_flight:
+                                    pending.cancel()
+                                raise RuntimeError(f"Step '{step.name}' failed during pipeline execution.") from exc
+                            continue
 
                         future = executor.submit(step.processor, *input_values, **step.params)
                         in_flight[future] = step_name
@@ -251,11 +299,25 @@ class Pipeline:
                     for future in done_futures:
                         step_name = in_flight.pop(future)
                         step = self.steps[step_name]
-                        output = future.result()
-                        step.data = output
-                        if step.save_method is not None and step.output_path is not None:
-                            step.save_method(output, step.output_path)
+                        try:
+                            output = future.result()
+                            step.data = output
+                            if step.save_method is not None and step.output_path is not None:
+                                step.save_method(output, step.output_path)
+                        except BaseException as exc:
+                            failed_steps.add(step_name)
+                            errors[step_name] = exc
+                            logger.exception(f"Step '{step.name}' failed.")
+                            sorter.done(step_name)
+                            if fail_fast:
+                                for pending in in_flight:
+                                    pending.cancel()
+                                raise RuntimeError(f"Step '{step.name}' failed during pipeline execution.") from exc
+                            continue
                         sorter.done(step_name)
+
+        if errors:
+            raise PipelineExecutionError(failed_steps=sorted(errors), skipped_steps=sorted(skipped_steps))
 
         if self.track_metadata and self.metadata_path is not None:
             with open(self.metadata_path, "w") as f:

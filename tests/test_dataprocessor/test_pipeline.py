@@ -7,6 +7,7 @@ from typing import Any
 import pytest
 
 from dataprocessor.pipeline import Pipeline
+from dataprocessor.pipeline import PipelineExecutionError
 from dataprocessor.pipeline import Step
 from dataprocessor.utils import ValidationError
 
@@ -366,6 +367,69 @@ def test_pipeline_run_parallel_invalid_mode() -> None:
 
     with pytest.raises(ValueError, match="Invalid mode 'invalid'"):
         pipeline.run(parallel=True, mode="invalid")  # type: ignore[arg-type]
+
+
+def test_pipeline_run_fail_fast_true_default() -> None:
+    def source(x: int) -> int:
+        return x
+
+    def raises(_: int) -> int:
+        raise ValueError("boom")
+
+    pipeline = Pipeline()
+    pipeline.add_step(name="source", processor=source, input_data=1)
+    pipeline.add_step(name="fails", processor=raises, inputs="source")
+
+    with pytest.raises(RuntimeError, match="Step 'fails' failed during pipeline execution."):
+        pipeline.run()
+
+
+def test_pipeline_run_fail_fast_false_serial() -> None:
+    def source(x: int) -> int:
+        return x
+
+    def raises(_: int) -> int:
+        raise ValueError("boom")
+
+    def add_one(x: int) -> int:
+        return x + 1
+
+    pipeline = Pipeline()
+    pipeline.add_step(name="source", processor=source, input_data=1)
+    pipeline.add_step(name="fails", processor=raises, inputs="source")
+    pipeline.add_step(name="ok", processor=add_one, inputs="source")
+    pipeline.add_step(name="downstream", processor=add_one, inputs="fails")
+
+    with pytest.raises(PipelineExecutionError, match="Failed steps: \\['fails'\\]\\. Skipped steps: \\['downstream'\\]"):
+        pipeline.run(fail_fast=False)
+
+    assert pipeline.get_output("ok") == 2
+    with pytest.raises(AttributeError, match="Step 'downstream': Attempted data retrieval before solving."):
+        pipeline.get_output("downstream")
+
+
+def test_pipeline_run_fail_fast_false_parallel() -> None:
+    def source(x: int) -> int:
+        return x
+
+    def raises(_: int) -> int:
+        raise ValueError("boom")
+
+    def add_one(x: int) -> int:
+        return x + 1
+
+    pipeline = Pipeline()
+    pipeline.add_step(name="source", processor=source, input_data=1)
+    pipeline.add_step(name="fails", processor=raises, inputs="source")
+    pipeline.add_step(name="ok", processor=add_one, inputs="source")
+    pipeline.add_step(name="downstream", processor=add_one, inputs="fails")
+
+    with pytest.raises(PipelineExecutionError, match="Failed steps: \\['fails'\\]\\. Skipped steps: \\['downstream'\\]"):
+        pipeline.run(parallel=True, mode="thread", max_workers=2, fail_fast=False)
+
+    assert pipeline.get_output("ok") == 2
+    with pytest.raises(AttributeError, match="Step 'downstream': Attempted data retrieval before solving."):
+        pipeline.get_output("downstream")
 
 
 def test_pipeline_get_output(subtests: pytest.Subtests) -> None:
