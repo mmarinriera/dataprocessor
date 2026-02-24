@@ -93,27 +93,26 @@ def test_pipeline_add_step(subtests: pytest.Subtests) -> None:
         return x
 
     pipeline = Pipeline(metadata_path="dummy_path.json")
-    step_data_0 = {
+    step_data_0: dict[str, Any] = {
         "name": "step_0",
         "processor": some_processor,
         "params": {"some_param": 42},
         "input_data": [1, 2, 3],
     }
-    pipeline.add_step(**step_data_0)  # type: ignore
-
+    pipeline.add_step(**step_data_0)
     with subtests.test("Step in pipeline dict"):
         assert "step_0" in pipeline.steps
 
     with subtests.test("Step constructed correctly"):
-        assert pipeline.steps["step_0"] == Step(**step_data_0)  # type: ignore
+        assert pipeline.steps["step_0"] == Step(**step_data_0)
 
-    step_data_1 = {
+    step_data_1: dict[str, Any] = {
         "name": "step_1",
         "processor": lambda x: x,
         "inputs": "step_0",
         "output_path": "/some/output/path",
     }
-    pipeline.add_step(**step_data_1)  # type: ignore
+    pipeline.add_step(**step_data_1)
 
     with subtests.test("Step single input converted to list."):
         assert pipeline.steps["step_1"].inputs == ["step_0"]
@@ -121,13 +120,13 @@ def test_pipeline_add_step(subtests: pytest.Subtests) -> None:
     with subtests.test("Step Params dict is empty if not provided"):
         assert pipeline.steps["step_1"].params == {}
 
-    step_data_2 = {
+    step_data_2: dict[str, Any] = {
         "name": "step_2",
         "processor": lambda x: x,
         "inputs": ["step_0", "step_1"],
         "output_path": "/some/output/path",
     }
-    pipeline.add_step(**step_data_2)  # type: ignore
+    pipeline.add_step(**step_data_2)
     with subtests.test("Step multiple inputs remain as list."):
         assert pipeline.steps["step_2"].inputs == ["step_0", "step_1"]
 
@@ -161,18 +160,22 @@ def test_pipeline_add_step(subtests: pytest.Subtests) -> None:
 
     with subtests.test("Duplicated step name raises error"):
         with pytest.raises(ValueError, match="Step 'step_0' already exists in the pipeline."):
-            pipeline.add_step(**step_data_0)  # type: ignore
+            pipeline.add_step(**step_data_0)
 
-    step_data_no_inputs = {"name": "step_no_inputs", "processor": lambda x: x, "params": {"some_param": 42}}
+    step_data_no_inputs: dict[str, Any] = {
+        "name": "step_no_inputs",
+        "processor": lambda x: x,
+        "params": {"some_param": 42},
+    }
     with (
         subtests.test("Step without input_data"),
         pytest.raises(
             ValueError, match="Step 'step_no_inputs': must have either inputs, input data, or an input path."
         ),
     ):
-        pipeline.add_step(**step_data_no_inputs)  # type: ignore
+        pipeline.add_step(**step_data_no_inputs)
 
-    step_no_load_method = {
+    step_no_load_method: dict[str, Any] = {
         "name": "step_no_load_method",
         "processor": lambda x: x,
         "params": {"some_param": 42},
@@ -184,7 +187,7 @@ def test_pipeline_add_step(subtests: pytest.Subtests) -> None:
             ValueError, match="Step 'step_no_load_method': a load_method must be provided if input_path is specified."
         ),
     ):
-        pipeline.add_step(**step_no_load_method)  # type: ignore
+        pipeline.add_step(**step_no_load_method)
 
 
 @pytest.mark.parametrize(
@@ -205,13 +208,13 @@ def test_pipeline_run_input_precedence(
     expected_output: list[int],
 ) -> None:
 
-    step_0 = {
+    step_0: dict[str, Any] = {
         "name": "step_0",
         "processor": _return_same,
         "input_data": [1, 2, 3],
     }
 
-    step_1 = {
+    step_1: dict[str, Any] = {
         "name": "step_1",
         "processor": _return_same,
         "input_path": input_path,
@@ -220,8 +223,8 @@ def test_pipeline_run_input_precedence(
         "load_method": _load_sequence_dummy,
     }
     pipeline = Pipeline()
-    pipeline.add_step(**step_0)  # type: ignore
-    pipeline.add_step(**step_1)  # type: ignore
+    pipeline.add_step(**step_0)
+    pipeline.add_step(**step_1)
     pipeline.run()
     assert pipeline.get_output("step_1") == expected_output
 
@@ -236,7 +239,7 @@ def test_pipeline_run_autoload(tmp_path: Path, subtests: pytest.Subtests, caplog
     output_path_0 = tmp_path / "step_0_output.csv"
     output_path_1 = tmp_path / "step_1_output.csv"
 
-    step_0 = {
+    step_0: dict[str, Any] = {
         "name": "step_0",
         "processor": _return_same,
         "input_path": input_path,
@@ -245,7 +248,7 @@ def test_pipeline_run_autoload(tmp_path: Path, subtests: pytest.Subtests, caplog
         "save_method": _save_sequence_csv,
     }
 
-    step_1 = {
+    step_1: dict[str, Any] = {
         "name": "step_1",
         "processor": _return_same,
         "inputs": "step_0",
@@ -255,8 +258,8 @@ def test_pipeline_run_autoload(tmp_path: Path, subtests: pytest.Subtests, caplog
     }
 
     pipeline_0 = Pipeline(force_run=True, metadata_path=tmp_path / "metadata.json")
-    pipeline_0.add_step(**step_0)  # type: ignore
-    pipeline_0.add_step(**step_1)  # type: ignore
+    pipeline_0.add_step(**step_0)
+    pipeline_0.add_step(**step_1)
 
     log_rerun = [
         f"Step 'step_0': Output file '{output_path_0}' not found or outdated. Recomputing step.",
@@ -269,16 +272,16 @@ def test_pipeline_run_autoload(tmp_path: Path, subtests: pytest.Subtests, caplog
     caplog.clear()
 
     pipeline_1 = Pipeline(force_run=True, metadata_path=tmp_path / "metadata.json")
-    pipeline_1.add_step(**step_0)  # type: ignore
-    pipeline_1.add_step(**step_1)  # type: ignore
+    pipeline_1.add_step(**step_0)
+    pipeline_1.add_step(**step_1)
     with subtests.test("Pipeline runs with force_run=True, should execute all steps."):
         pipeline_1.run()
         assert all(msg not in caplog.text for msg in log_rerun)
     caplog.clear()
 
     pipeline_2 = Pipeline(force_run=False, metadata_path=tmp_path / "metadata.json")
-    pipeline_2.add_step(**step_0)  # type: ignore
-    pipeline_2.add_step(**step_1)  # type: ignore
+    pipeline_2.add_step(**step_0)
+    pipeline_2.add_step(**step_1)
 
     log_autoload = [
         f"Step 'step_0': Output file '{output_path_0}' found. Loading output from file.",
@@ -295,8 +298,8 @@ def test_pipeline_run_autoload(tmp_path: Path, subtests: pytest.Subtests, caplog
         writer.writerow([1, 2, 3])
 
     pipeline_3 = Pipeline(force_run=False, metadata_path=tmp_path / "metadata.json")
-    pipeline_3.add_step(**step_0)  # type: ignore
-    pipeline_3.add_step(**step_1)  # type: ignore
+    pipeline_3.add_step(**step_0)
+    pipeline_3.add_step(**step_1)
     with subtests.test("Pipeline runs with force_run=False but input file changed, should re-run steps"):
         pipeline_3.run()
         assert all(msg in caplog.text for msg in log_rerun)
@@ -307,7 +310,7 @@ def test_pipeline_autoload_metadata(
 ) -> None:
     output_path_0 = tmp_path / "step_0_output.csv"
 
-    step_0 = {
+    step_0: dict[str, Any] = {
         "name": "step_0",
         "processor": _scale,
         "input_data": [1, 2, 3],
@@ -318,7 +321,7 @@ def test_pipeline_autoload_metadata(
     }
 
     pipeline_0 = Pipeline(force_run=False, metadata_path=tmp_path / "metadata.json")
-    pipeline_0.add_step(**step_0)  # type: ignore
+    pipeline_0.add_step(**step_0)
 
     log_rerun = f"Step 'step_0': Output file '{output_path_0}' not found or outdated. Recomputing step."
 
@@ -330,7 +333,7 @@ def test_pipeline_autoload_metadata(
 
     step_0["params"] = {"factor": 3}
     pipeline_1 = Pipeline(force_run=False, metadata_path=tmp_path / "metadata.json")
-    pipeline_1.add_step(**step_0)  # type: ignore
+    pipeline_1.add_step(**step_0)
     with subtests.test("Pipeline runs with force_run=False but params changed"):
         pipeline_1.run()
         assert log_rerun in caplog.text
@@ -356,7 +359,7 @@ def test_pipeline_run_parallel_thread_mode() -> None:
     pipeline.add_step(name="right", processor=branch, inputs="source", params={"increment": 2})
     pipeline.add_step(name="merge", processor=merge, inputs=["left", "right"])
 
-    pipeline.run(parallel=True, mode="thread", max_workers=2)
+    pipeline.run(parallel="thread", max_workers=2)
 
     assert pipeline.get_output("merge") == 5
 
@@ -366,7 +369,7 @@ def test_pipeline_run_parallel_invalid_mode() -> None:
     pipeline.add_step(name="step", processor=lambda x: x, input_data=[1, 2, 3])
 
     with pytest.raises(ValueError, match="Invalid parallel run mode 'invalid'. Expected one of: thread, process."):
-        pipeline.run(parallel=True, mode="invalid")  # type: ignore[arg-type]
+        pipeline.run(parallel="invalid")  # type: ignore[arg-type]
 
 
 def test_pipeline_run_fail_fast_true_default() -> None:
@@ -380,7 +383,7 @@ def test_pipeline_run_fail_fast_true_default() -> None:
     pipeline.add_step(name="source", processor=source, input_data=1)
     pipeline.add_step(name="fails", processor=raises, inputs="source")
 
-    with pytest.raises(RuntimeError, match="Step 'fails': failed during pipeline execution."):
+    with pytest.raises(RuntimeError, match="Step 'fails': Aborting pipeline execution due to step failure."):
         pipeline.run()
 
 
@@ -429,7 +432,7 @@ def test_pipeline_run_fail_fast_false_parallel() -> None:
     with pytest.raises(
         PipelineExecutionError, match="Failed steps: \\['fails'\\]\\. Skipped steps: \\['downstream'\\]"
     ):
-        pipeline.run(parallel=True, mode="thread", max_workers=2, fail_fast=False)
+        pipeline.run(parallel="thread", max_workers=2, fail_fast=False)
 
     assert pipeline.get_output("ok") == 2
     with pytest.raises(AttributeError, match="Step 'downstream': Attempted data retrieval before solving."):
@@ -437,13 +440,13 @@ def test_pipeline_run_fail_fast_false_parallel() -> None:
 
 
 def test_pipeline_get_output(subtests: pytest.Subtests) -> None:
-    step_0 = {
+    step_0: dict[str, Any] = {
         "name": "step_0",
         "processor": _return_same,
         "input_data": [1, 2, 3],
     }
     pipeline = Pipeline()
-    pipeline.add_step(**step_0)  # type: ignore
+    pipeline.add_step(**step_0)
     with subtests.test("Attempting to get output before running pipeline"):
         with pytest.raises(AttributeError, match="Step 'step_0': Attempted data retrieval before solving."):
             pipeline.get_output("step_0")
@@ -458,20 +461,20 @@ def test_pipeline_get_output(subtests: pytest.Subtests) -> None:
 
 
 def test_pipeline_validate_types() -> None:
-    step_0_data = {
+    step_0_data: dict[str, Any] = {
         "name": "step_0",
         "processor": _return_same,
         "input_data": [1, 2, 3],
     }
-    step_1_data = {
+    step_1_data: dict[str, Any] = {
         "name": "step_1",
         "processor": _scale,
         "inputs": "step_0",
         "params": {"factor": 2},
     }
     pipeline_0 = Pipeline()
-    pipeline_0.add_step(**step_0_data)  # type: ignore
-    pipeline_0.add_step(**step_1_data)  # type: ignore
+    pipeline_0.add_step(**step_0_data)
+    pipeline_0.add_step(**step_1_data)
     pipeline_0.validate_step_types()
 
     step_0_data = {
@@ -481,8 +484,8 @@ def test_pipeline_validate_types() -> None:
         "load_method": _load_sequence_dummy,
     }
     pipeline_1 = Pipeline()
-    pipeline_1.add_step(**step_0_data)  # type: ignore
-    pipeline_1.add_step(**step_1_data)  # type: ignore
+    pipeline_1.add_step(**step_0_data)
+    pipeline_1.add_step(**step_1_data)
     pipeline_1.validate_step_types()
 
 
@@ -522,13 +525,13 @@ def test_pipeline_validate_types() -> None:
     ],
 )
 def test_pipeline_validate_types_fails(step_data: dict[str, Any], expected_message: str) -> None:
-    step_0_data = {
+    step_0_data: dict[str, Any] = {
         "name": "step_0",
         "processor": _return_same,
         "input_data": [1, 2, 3],
     }
     pipeline = Pipeline()
-    pipeline.add_step(**step_0_data)  # type: ignore
-    pipeline.add_step(**step_data)  # type: ignore
+    pipeline.add_step(**step_0_data)
+    pipeline.add_step(**step_data)
     with pytest.raises(ValidationError, match=expected_message):
         pipeline.validate_step_types()
