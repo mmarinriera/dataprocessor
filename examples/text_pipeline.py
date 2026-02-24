@@ -83,7 +83,7 @@ def main() -> None:
         "Hello again; let's process some text!",
     ]
 
-    pipeline = Pipeline(force_run=False)
+    pipeline = Pipeline(force_run=False, metadata_path=data_path / "pipeline_metadata.json")
 
     pipeline.add_step(
         name="lowercase",

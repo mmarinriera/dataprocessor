@@ -7,7 +7,7 @@
                 "factor": 2
             },
             "input_path": null,
-            "output_path": "examples/data/simple/output_1_scaled.csv"
+            "output_path": "./examples/data/output_1_scaled.csv"
         },
         "sorted": {
             "processor": "sort",
@@ -16,7 +16,7 @@
             ],
             "params": {},
             "input_path": null,
-            "output_path": "examples/data/simple/output_1_sorted.csv"
+            "output_path": "./examples/data/output_1_sorted.csv"
         },
         "filtered": {
             "processor": "filter_by_threshold",
@@ -27,7 +27,7 @@
                 "threshold": 5
             },
             "input_path": null,
-            "output_path": "examples/data/simple/output_1_filtered.csv"
+            "output_path": "./examples/data/output_1_filtered.csv"
         }
     }
 }
