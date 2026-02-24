@@ -60,7 +60,6 @@ class Pipeline:
 
     def __init__(self, force_run: bool = True, metadata_path: str | Path | None = None) -> None:
         self.steps: dict[str, Step] = {}
-        self.sorter: TopologicalSorter[str] = TopologicalSorter()
         self.force_run = force_run
 
         self.metadata_path = Path(metadata_path).with_suffix(".json") if metadata_path is not None else None
@@ -125,7 +124,6 @@ class Pipeline:
         )
 
         self.steps[name] = step
-        self.sorter.add(name, *inputs)
 
         if self.track_metadata:
             self._update_metadata(step)
@@ -212,7 +210,9 @@ class Pipeline:
 
             for step_name in execution_order:
                 step = self.steps[step_name]
-                blocked_inputs = [input_name for input_name in step.inputs if input_name in failed_steps | skipped_steps]
+                blocked_inputs = [
+                    input_name for input_name in step.inputs if input_name in failed_steps | skipped_steps
+                ]
                 if blocked_inputs:
                     logger.error(f"Step '{step.name}': Skipped because dependencies failed: {blocked_inputs}.")
                     skipped_steps.add(step_name)

@@ -400,7 +400,9 @@ def test_pipeline_run_fail_fast_false_serial() -> None:
     pipeline.add_step(name="ok", processor=add_one, inputs="source")
     pipeline.add_step(name="downstream", processor=add_one, inputs="fails")
 
-    with pytest.raises(PipelineExecutionError, match="Failed steps: \\['fails'\\]\\. Skipped steps: \\['downstream'\\]"):
+    with pytest.raises(
+        PipelineExecutionError, match="Failed steps: \\['fails'\\]\\. Skipped steps: \\['downstream'\\]"
+    ):
         pipeline.run(fail_fast=False)
 
     assert pipeline.get_output("ok") == 2
@@ -424,7 +426,9 @@ def test_pipeline_run_fail_fast_false_parallel() -> None:
     pipeline.add_step(name="ok", processor=add_one, inputs="source")
     pipeline.add_step(name="downstream", processor=add_one, inputs="fails")
 
-    with pytest.raises(PipelineExecutionError, match="Failed steps: \\['fails'\\]\\. Skipped steps: \\['downstream'\\]"):
+    with pytest.raises(
+        PipelineExecutionError, match="Failed steps: \\['fails'\\]\\. Skipped steps: \\['downstream'\\]"
+    ):
         pipeline.run(parallel=True, mode="thread", max_workers=2, fail_fast=False)
 
     assert pipeline.get_output("ok") == 2
