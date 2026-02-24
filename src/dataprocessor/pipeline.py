@@ -1,4 +1,5 @@
 import json
+import sys
 from collections.abc import Callable
 from concurrent.futures import Future
 from concurrent.futures import ProcessPoolExecutor
@@ -10,12 +11,19 @@ from graphlib import TopologicalSorter
 from pathlib import Path
 from typing import Any
 from typing import Literal
+from typing import TypeAlias
 
 from dataprocessor.logger import get_logger
 from dataprocessor.utils import ValidationError
 from dataprocessor.utils import get_func_arg_type_annotations
 from dataprocessor.utils import get_func_required_args
 from dataprocessor.utils import get_func_return_type_annotation
+
+if sys.version_info >= (3, 11):
+    TopologicalSorterStr: TypeAlias = TopologicalSorter[str]
+else:
+    TopologicalSorterStr: TypeAlias = TopologicalSorter
+
 
 logger = get_logger()
 
@@ -179,8 +187,8 @@ class Pipeline:
 
         return True
 
-    def _build_sorter(self) -> TopologicalSorter[str]:
-        sorter: TopologicalSorter[str] = TopologicalSorter()
+    def _build_sorter(self) -> TopologicalSorterStr:
+        sorter: TopologicalSorterStr = TopologicalSorterStr()
         for step in self.steps.values():
             sorter.add(step.name, *step.inputs)
         return sorter
