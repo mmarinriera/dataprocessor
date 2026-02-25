@@ -30,6 +30,15 @@ logger = get_logger()
 
 
 class PipelineExecutionError(RuntimeError):
+    """
+    Pipeline execution has failed during runtime.
+
+    Attributes:
+        failed_steps: Names of steps that raised an exception.
+        skipped_steps: Names of steps skipped due to failed dependencies.
+
+    """
+
     def __init__(self, failed_steps: list[str], skipped_steps: list[str]) -> None:
         self.failed_steps = failed_steps
         self.skipped_steps = skipped_steps
@@ -54,17 +63,48 @@ class Step:
 
     @property
     def data(self) -> Any:
+        """
+        Return solved data for the step.
+
+        Returns:
+            Any: Output data produced for this step.
+
+        Raises:
+            AttributeError: If data is requested before the step has produced output.
+
+        """
         if self._data is None:
             raise AttributeError(f"Step '{self.name}': Attempted data retrieval before solving.")
         return self._data
 
     @data.setter
     def data(self, data: Any) -> None:
+        """
+        Store solved data for the step.
+
+        Args:
+            data: Output value to attach to the step.
+
+        """
         self._data = data
 
 
 class Pipeline:
-    """A simple data processing pipeline that allows you to define steps with dependencies and execute them in the correct order."""
+    """
+    A simple data processing pipeline with dependency-aware execution.
+
+    Attributes:
+        steps: Mapping of step names to configured :class:`Step` definitions.
+        force_run: Whether cached step outputs should be ignored and recomputed.
+        metadata_path: JSON metadata file path, or ``None`` when metadata tracking is disabled.
+        track_metadata: Flag indicating whether step metadata should be tracked and persisted.
+        metadata: In-memory metadata snapshot for currently configured steps.
+        tracked_metadata: Metadata loaded from disk for cache-validation comparisons.
+        failed_steps: Names of steps that failed during the most recent run.
+        skipped_steps: Names of steps skipped due to failed upstream dependencies.
+        errors: Mapping of failed step names to their captured exceptions.
+
+    """
 
     def __init__(self, force_run: bool = True, metadata_path: str | Path | None = None) -> None:
         self.steps: dict[str, Step] = {}
@@ -84,6 +124,13 @@ class Pipeline:
         self.errors: dict[str, BaseException] = {}
 
     def _update_metadata(self, step: Step) -> None:
+        """
+        Update in-memory metadata for a configured step.
+
+        Args:
+            step: Step to serialise into the metadata model.
+
+        """
         # Ensure parameters that contain sets are JSON serialisable
         # TODO: Consider adding other non-serialisable types.
         serializable_params = {}
@@ -113,7 +160,30 @@ class Pipeline:
         load_method: Callable[[str | Path], Any] | None = None,
         save_method: Callable[[Any, str | Path], None] | None = None,
     ) -> None:
+        """
+        Register a new processing step in the pipeline.
 
+        Args:
+            name: Unique name of the step.
+            processor: Callable that transforms step input(s) into output.
+            inputs: Upstream step name(s) that are inputs to the processor.
+                The output from those input steps will be passed as positional arguments
+                to ``processor``.
+            params: Extra keyword arguments passed to ``processor``.
+            input_data: Literal input value passed as input to processor.
+                If ``input_data`` is set, other input sources will be ignored.
+            input_path: File path to load input data for step.
+                If ``input_path`` is set, `inputs` will be ignored.
+                Requires ``load_method`` to be set.
+            output_path: File path where output data is saved.
+                Requires ``save_method`` to be set
+            load_method: Function used to load data from ``input_path`` or cached output.
+            save_method: Function used to save output data to ``output_path``.
+
+        Raises:
+            ValueError: If step name already exists or required input configuration is missing.
+
+        """
         if name in self.steps:
             raise ValueError(f"Step '{name}' already exists in the pipeline.")
 
@@ -150,6 +220,22 @@ class Pipeline:
             self._update_metadata(step)
 
     def _autoload_allowed(self, step: Step) -> bool:
+        """
+        Check whether a step output can be loaded from disk, thus skipping processor execution.
+
+        The criteria for allowing auto-loading:
+            - The output files from input steps, or the input file from current step need
+                to be older than the output file from the current step.
+            - If `Pipeline.track_metadata` is enabled, current step configuration (e.g. passed `param` values)
+                need to match the tracked metadata from the previous run.
+
+        Args:
+            step: Step being evaluated for auto-loading.
+
+        Returns:
+            bool: True if output auto-loading is allowed, False otherwise.
+
+        """
         if step.load_method is None or step.output_path is None:
             logger.debug(f"Step '{step.name}': Autoload not allowed because load_method or output_path is not defined.")
             return False
@@ -198,12 +284,29 @@ class Pipeline:
         return True
 
     def _build_sorter(self) -> TopologicalSorterStr:
+        """
+        Build a topological sorter for current step dependencies.
+
+        Returns:
+            TopologicalSorterStr: Sorter prepared with all pipeline step edges.
+
+        """
         sorter: TopologicalSorterStr = TopologicalSorterStr()
         for step in self.steps.values():
             sorter.add(step.name, *step.inputs)
         return sorter
 
     def _failed_or_skipped_inputs(self, step: Step) -> bool:
+        """
+        Determine whether any upstream dependency has failed or been skipped.
+
+        Args:
+            step: Step whose dependencies are checked.
+
+        Returns:
+            bool: True when execution should be skipped due to failed or skipped inputs.
+
+        """
         blocked_inputs = [
             input_name for input_name in step.inputs if input_name in self.failed_steps | self.skipped_steps
         ]
@@ -215,6 +318,16 @@ class Pipeline:
         return False
 
     def _get_input_values(self, step: Step) -> list[Any]:
+        """
+        Resolve positional input values for a step.
+
+        Args:
+            step: Step to resolve inputs for.
+
+        Returns:
+            list[Any]: Positional argument values to pass to the processor.
+
+        """
         if step.input_path is not None:
             logger.info(f"Step '{step.name}': Loading input from file,'{step.input_path}'.")
             return [step.load_method(step.input_path)]  # type: ignore
@@ -225,6 +338,16 @@ class Pipeline:
         return [self.steps[input_name].data for input_name in step.inputs]
 
     def _attempt_output_load(self, step: Step) -> bool:
+        """
+        Try loading a cached output value for a step.
+
+        Args:
+            step: Step to load from cache when possible.
+
+        Returns:
+            bool: True if cached output was loaded, False if recomputation is required.
+
+        """
         if self.force_run:
             return False
         if self._autoload_allowed(step):
@@ -235,6 +358,16 @@ class Pipeline:
         return False
 
     def _run_serial(self, fail_fast: bool) -> None:
+        """
+        Execute pipeline steps serially in dependency order.
+
+        Args:
+            fail_fast: If True, stop execution immediately on first step failure.
+
+        Raises:
+            RuntimeError: If ``fail_fast`` is True and a step raises an exception.
+
+        """
         execution_order = list(self._build_sorter().static_order())
 
         for step_name in execution_order:
@@ -262,6 +395,19 @@ class Pipeline:
     def _run_parallel(
         self, mode: Literal["thread", "process"], max_workers: int | None, fail_fast: bool = False
     ) -> None:
+        """
+        Execute pipeline steps in parallel while respecting dependencies.
+
+        Args:
+            mode: Parallel backend mode, either ``"thread"`` or ``"process"``.
+            max_workers: Maximum number of worker threads/processes.
+            fail_fast: If True, cancel pending work and abort after first failure.
+
+        Raises:
+            ValueError: If ``mode`` is not a supported value.
+            RuntimeError: If ``fail_fast`` is True and a step raises an exception.
+
+        """
         if mode not in {"thread", "process"}:
             raise ValueError(f"Invalid parallel run mode '{mode}'. Expected one of: thread, process.")
 
@@ -318,6 +464,18 @@ class Pipeline:
         max_workers: int | None = None,
         fail_fast: bool = True,
     ) -> None:
+        """
+        Run the pipeline.
+
+        Args:
+            parallel: Optional parallel mode. If ``None``, runs serially.
+            max_workers: Maximum workers for parallel execution.
+            fail_fast: If True, abort on first failed step.
+
+        Raises:
+            PipelineExecutionError: If one or more steps fail during execution.
+
+        """
         if parallel is None:
             self._run_serial(fail_fast=fail_fast)
         else:
@@ -332,12 +490,42 @@ class Pipeline:
                 f.write("\n")
 
     def get_output(self, name: str) -> Any:
+        """
+        Retrieve output data for a named step.
+
+        Args:
+            name: Step name whose output should be returned.
+
+        Returns:
+            Any: Output value produced by the named step.
+
+        Raises:
+            ValueError: If ``name`` does not exist in the pipeline.
+            AttributeError: If the step has not produced output yet.
+
+        """
         step = self.steps.get(name)
         if step is None:
             raise ValueError(f"Step '{name}' does not exist in the pipeline.")
         return step.data
 
     def validate_step_types(self) -> None:
+        """
+        Validate processor input and parameter types for all configured steps.
+
+        - Check that processor argument type annotations match return type annotations of the
+            input step processors.
+        - Check that all required processor arguments are provided by step ``params``.
+        - Check that all passed `params` match a processor argument, and their types match.
+
+        Note: Type checking for literal values (i.e. values passed to ``Step.input_data``) not yet supported.
+
+        Note: When validating parameters of iterable type, type checking of containing elements is not yet supported.
+
+        Raises:
+            ValidationError: If input types or parameter definitions do not match processor signatures.
+
+        """
         for step in self.steps.values():
             if step.input_path is not None:
                 input_types = [get_func_return_type_annotation(step.load_method)]  # type: ignore
