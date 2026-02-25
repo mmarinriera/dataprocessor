@@ -155,7 +155,7 @@ def main() -> None:
     pipeline.run()
 
     # Retrieve result
-    result: Counter = pipeline.get_output("word_frequency")
+    result: dict[str, int] = pipeline.get_output("word_frequency")
 
     print("Word frequencies:")
     for word, freq in result.items():
