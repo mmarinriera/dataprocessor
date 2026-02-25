@@ -1,0 +1,10 @@
+book,4
+hobbits,4
+may,4
+more,4
+first,3
+people,3
+do,3
+have,3
+much,2
+little,2

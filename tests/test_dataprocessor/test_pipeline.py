@@ -40,6 +40,10 @@ def _scale(x: list[int], factor: int) -> list[int]:
     return [i * factor for i in x]
 
 
+def _filter_from_values(x: list[int], values: list[int]) -> list[int]:
+    return [i for i in x if i not in values]
+
+
 def _processor_str_sequence(x: list[str]) -> list[str]:
     return x
 
@@ -468,9 +472,9 @@ def test_pipeline_validate_types() -> None:
     }
     step_1_data: dict[str, Any] = {
         "name": "step_1",
-        "processor": _scale,
+        "processor": _filter_from_values,
         "inputs": "step_0",
-        "params": {"factor": 2},
+        "params": {"values": [1, 2, 3]},
     }
     pipeline_0 = Pipeline()
     pipeline_0.add_step(**step_0_data)

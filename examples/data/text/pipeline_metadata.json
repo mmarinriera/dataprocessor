@@ -1,0 +1,76 @@
+{
+    "steps": {
+        "lowercase": {
+            "processor": "lowercase",
+            "inputs": [],
+            "params": {},
+            "input_path": "examples/data/text/input.txt",
+            "output_path": "examples/data/text/lowercase.txt"
+        },
+        "remove_punctuation": {
+            "processor": "remove_punctuation",
+            "inputs": [
+                "lowercase"
+            ],
+            "params": {},
+            "input_path": null,
+            "output_path": "examples/data/text/no_punctuation.txt"
+        },
+        "tokenize": {
+            "processor": "tokenize",
+            "inputs": [
+                "remove_punctuation"
+            ],
+            "params": {},
+            "input_path": null,
+            "output_path": "examples/data/text/tokens.csv"
+        },
+        "remove_stopwords": {
+            "processor": "remove_stopwords",
+            "inputs": [
+                "tokenize"
+            ],
+            "params": {
+                "stopwords": [
+                    "a",
+                    "again",
+                    "and",
+                    "are",
+                    "as",
+                    "by",
+                    "for",
+                    "from",
+                    "in",
+                    "is",
+                    "it",
+                    "let",
+                    "lets",
+                    "not",
+                    "of",
+                    "some",
+                    "than",
+                    "that",
+                    "the",
+                    "their",
+                    "they",
+                    "this",
+                    "to",
+                    "with"
+                ]
+            },
+            "input_path": null,
+            "output_path": "examples/data/text/tokens_filtered.csv"
+        },
+        "word_frequency": {
+            "processor": "word_frequency",
+            "inputs": [
+                "remove_stopwords"
+            ],
+            "params": {
+                "most_common": 10
+            },
+            "input_path": null,
+            "output_path": "examples/data/text/word_frequency.txt"
+        }
+    }
+}

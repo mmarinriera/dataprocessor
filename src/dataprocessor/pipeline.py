@@ -16,6 +16,7 @@ from typing import TypeAlias
 from dataprocessor.logger import get_logger
 from dataprocessor.utils import ValidationError
 from dataprocessor.utils import get_func_arg_type_annotations
+from dataprocessor.utils import get_func_arg_types
 from dataprocessor.utils import get_func_required_args
 from dataprocessor.utils import get_func_return_type_annotation
 
@@ -83,10 +84,19 @@ class Pipeline:
         self.errors: dict[str, BaseException] = {}
 
     def _update_metadata(self, step: Step) -> None:
+        # Ensure parameters that contain sets are JSON serialisable
+        # TODO: Consider adding other non-serialisable types.
+        serializable_params = {}
+        if step.params:
+            for k, v in step.params.items():
+                if isinstance(v, set) or isinstance(v, frozenset):
+                    v = sorted(list(v))
+                serializable_params[k] = v
+
         self.metadata["steps"][step.name] = {
             "processor": getattr(step.processor, "__name__", "no_processor_name"),
             "inputs": step.inputs,
-            "params": step.params,
+            "params": serializable_params,
             "input_path": str(step.input_path) if step.input_path else None,
             "output_path": str(step.output_path) if step.output_path else None,
         }
@@ -337,14 +347,13 @@ class Pipeline:
             else:
                 input_steps = [self.steps[input_name] for input_name in step.inputs]
                 input_types = [get_func_return_type_annotation(input_step.processor) for input_step in input_steps]
+
             processor_arg_types = get_func_arg_type_annotations(step.processor)
             logger.debug(
                 f"Step '{step.name}': Inferred input types: {input_types} // Processor argument types: {processor_arg_types}"
             )
             if not all(t == u for t, u in zip(input_types, processor_arg_types.values())):
                 raise ValidationError(f"Step '{step.name}': Input types do not match processor inputs.")
-
-            processor_arg_types = get_func_arg_type_annotations(step.processor)
 
             # Check that all required processor arguments are provided by either inputs or params
             required_arg_names = get_func_required_args(step.processor)
@@ -359,6 +368,8 @@ class Pipeline:
             if not step.params:
                 continue
 
+            processor_arg_types = get_func_arg_types(step.processor)
+
             # Check that all parameters passed match an argument in the processor and that the types match
             for param_name, param_value in step.params.items():
                 if param_name not in processor_arg_types:
@@ -366,6 +377,9 @@ class Pipeline:
                         f"Step '{step.name}': Parameter '{param_name}' not found in processor arguments."
                     )
                 expected_type = processor_arg_types[param_name]
+                logger.debug(
+                    f"Step '{step.name}': Validating parameter '{param_name}' with value '{param_value}' against expected type '{expected_type}'."
+                )
                 if not isinstance(param_value, expected_type):
                     raise ValidationError(
                         f"Step '{step.name}': Parameter '{param_name}' expected type {expected_type}, got {type(param_value)}."

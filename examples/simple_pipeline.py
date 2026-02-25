@@ -60,6 +60,8 @@ def merge(input1: list[int], input2: list[int]) -> list[int]:
 
 def main():
 
+    data_path = Path("./examples/data/simple/")
+
     logger = get_logger()
     logger.setLevel(logging.DEBUG)
 
@@ -68,7 +70,7 @@ def main():
     - The pipeline will check if the output files exist and load them instead of re-running the steps.
 
     """)
-    pipeline_1 = Pipeline(force_run=False, metadata_path="./examples/data/pipeline_metadata.json")
+    pipeline_1 = Pipeline(force_run=False, metadata_path=data_path / "pipeline_metadata.json")
 
     pipeline_1.add_step(
         name="scaled",
@@ -78,7 +80,7 @@ def main():
         params={"factor": 2},
         load_method=load_sequence_csv,
         save_method=save_sequence_csv,
-        output_path="./examples/data/output_1_scaled.csv",
+        output_path=data_path / "output_1_scaled.csv",
     )
 
     pipeline_1.add_step(
@@ -87,7 +89,7 @@ def main():
         inputs="scaled",
         load_method=load_sequence_csv,
         save_method=save_sequence_csv,
-        output_path="./examples/data/output_1_sorted.csv",
+        output_path=data_path / "output_1_sorted.csv",
     )
 
     pipeline_1.add_step(
@@ -97,7 +99,7 @@ def main():
         params={"threshold": 5},
         load_method=load_sequence_csv,
         save_method=save_sequence_csv,
-        output_path="./examples/data/output_1_filtered.csv",
+        output_path=data_path / "output_1_filtered.csv",
     )
 
     pipeline_1.validate_step_types()
@@ -130,10 +132,10 @@ Pipeline 2:
     pipeline_2.add_step(
         name="sorted",
         processor=sort,
-        input_path="./examples/data/input_sequence.csv",
+        input_path=data_path / "input_sequence.csv",
         load_method=load_sequence_csv,
         save_method=save_sequence_csv,
-        output_path="./examples/data/output_2_sorted.csv",
+        output_path=data_path / "output_2_sorted.csv",
     )
 
     pipeline_2.add_step(
@@ -142,7 +144,7 @@ Pipeline 2:
         inputs="sorted",
         load_method=load_sequence_csv,
         save_method=save_sequence_csv,
-        output_path="./examples/data/output_2_even_filtered.csv",
+        output_path=data_path / "output_2_even_filtered.csv",
     )
 
     pipeline_2.add_step(
@@ -151,7 +153,7 @@ Pipeline 2:
         inputs="sorted",
         load_method=load_sequence_csv,
         save_method=save_sequence_csv,
-        output_path="./examples/data/output_2_odd_filtered.csv",
+        output_path=data_path / "output_2_odd_filtered.csv",
     )
 
     pipeline_2.add_step(
@@ -161,7 +163,7 @@ Pipeline 2:
         params={"factor": 2},
         load_method=load_sequence_csv,
         save_method=save_sequence_csv,
-        output_path="./examples/data/output_2_even_scaled.csv",
+        output_path=data_path / "output_2_even_scaled.csv",
     )
 
     pipeline_2.add_step(
@@ -171,7 +173,7 @@ Pipeline 2:
         params={"factor": 3},
         load_method=load_sequence_csv,
         save_method=save_sequence_csv,
-        output_path="./examples/data/output_2_odd_scaled.csv",
+        output_path=data_path / "output_2_odd_scaled.csv",
     )
 
     pipeline_2.add_step(
@@ -180,7 +182,7 @@ Pipeline 2:
         inputs=["even_scaled", "odd_scaled"],
         load_method=load_sequence_csv,
         save_method=save_sequence_csv,
-        output_path="./examples/data/output_2_merged.csv",
+        output_path=data_path / "output_2_merged.csv",
     )
 
     pipeline_2.validate_step_types()

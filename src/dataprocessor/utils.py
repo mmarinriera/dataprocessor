@@ -1,6 +1,8 @@
 import inspect
 from collections.abc import Callable
+from collections.abc import Iterable
 from typing import Any
+from typing import get_origin
 from typing import get_type_hints
 
 
@@ -14,6 +16,18 @@ def get_func_return_type_annotation(func: Callable[..., Any]) -> Any:
 
 def get_func_arg_type_annotations(func: Callable[..., Any]) -> dict[str, Any]:
     type_hints = get_type_hints(func)
+    type_hints.pop("return", None)
+    return type_hints
+
+
+def get_func_arg_types(func: Callable[..., Any]) -> dict[str, Any]:
+    type_hints = get_type_hints(func)
+    # Hacky workaround to skip actual deep level type checking.
+    # If the type annotation is a parametrized iterable, we swap it for the iterable type (e.g. <class list>).
+    for n, t in type_hints.items():
+        origin = get_origin(t)
+        if origin is not None and issubclass(origin, Iterable):
+            type_hints[n] = origin
     type_hints.pop("return", None)
     return type_hints
 
