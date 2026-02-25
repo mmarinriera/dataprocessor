@@ -25,6 +25,9 @@ if sys.version_info >= (3, 11):
 else:
     TopologicalSorterStr: TypeAlias = TopologicalSorter
 
+LoadMethod = Callable[[str | Path], Any]
+SaveMethod = Callable[[Any, str | Path], None]
+
 
 logger = get_logger()
 
@@ -56,10 +59,14 @@ class Step:
     params: dict[str, Any] = field(default_factory=dict)
     input_data: Any = None
     input_path: str | Path | None = None
-    output_path: str | Path | None = None
-    load_method: Callable[[str | Path], Any] | None = None
-    save_method: Callable[[Any, str | Path], None] | None = None
+    outputs: list[str] | None = None
+    output_path: str | Path | tuple[str | Path, ...] | None = None
+    load_method: LoadMethod | tuple[LoadMethod, ...] | None = None
+    save_method: SaveMethod | tuple[SaveMethod, ...] | None = None
     _data: Any | None = field(init=False, default=None)
+
+    def __post_init__(self) -> None:
+        self._validate()
 
     @property
     def data(self) -> Any:
@@ -87,6 +94,48 @@ class Step:
 
         """
         self._data = data
+
+    def _validate(self) -> None:
+        """
+        Internal step data validation.
+
+        - Check that theres is at least one input source: ``input_path``, ``input_data`` or ``inputs``.
+        - Check that ``load_method`` is specified if ``input_path`` or ``output_path`` are specified.
+        - If ``input_path`` is set, check that the file exists.
+        - If there are multiple outputs, check that there is a single load method, or as many as outputs.
+        - If there are multiple outputs, check that there is a single save method, or as many as outputs.
+
+        Raises:
+            Value error if any of the checks fail.
+
+        """
+        has_input_source = bool(self.inputs) or self.input_data is not None or self.input_path is not None
+        if not has_input_source:
+            raise ValueError(f"Step '{self.name}': must have either inputs, input data, or an input path.")
+
+        if (self.input_path is not None or self.output_path is not None) and self.load_method is None:
+            raise ValueError(
+                f"Step '{self.name}': a load_method must be provided if input_path or output_path is specified."
+            )
+
+        if self.input_path is not None and not Path(self.input_path).exists():
+            raise ValueError(f"Step '{self.name}': input_path '{self.input_path}' does not exist.")
+
+        n_outputs = len(self.outputs) if self.outputs is not None else 1
+        if n_outputs <= 1:
+            return
+
+        if isinstance(self.load_method, tuple) and len(self.load_method) not in {1, n_outputs}:
+            raise ValueError(
+                f"Step '{self.name}': load_method must be a single callable or a tuple with {n_outputs} methods."
+            )
+
+        if isinstance(self.save_method, tuple) and len(self.save_method) not in {1, n_outputs}:
+            raise ValueError(
+                f"Step '{self.name}': save_method must be a single callable or a tuple with {n_outputs} methods."
+            )
+
+
 
 
 class Pipeline:
@@ -156,9 +205,10 @@ class Pipeline:
         params: dict[str, Any] | None = None,
         input_data: Any = None,
         input_path: str | Path | None = None,
+        outputs: list[str] | None = None,
         output_path: str | Path | None = None,
-        load_method: Callable[[str | Path], Any] | None = None,
-        save_method: Callable[[Any, str | Path], None] | None = None,
+        load_method: LoadMethod | tuple[LoadMethod, ...] | None = None,
+        save_method: SaveMethod | tuple[SaveMethod, ...] | None = None,
     ) -> None:
         """
         Register a new processing step in the pipeline.
@@ -175,6 +225,9 @@ class Pipeline:
             input_path: File path to load input data for step.
                 If ``input_path`` is set, `inputs` will be ignored.
                 Requires ``load_method`` to be set.
+            outputs: Names of outputs to reference in other steps,
+                if the processor produces multiple outputs (as a tuple).
+                If set to None, it is assumed the processor returns a single output.
             output_path: File path where output data is saved.
                 Requires ``save_method`` to be set
             load_method: Function used to load data from ``input_path`` or cached output.
@@ -193,12 +246,6 @@ class Pipeline:
         if inputs is None:
             inputs = []
 
-        if not inputs and input_data is None and input_path is None:
-            raise ValueError(f"Step '{name}': must have either inputs, input data, or an input path.")
-
-        if input_path is not None and load_method is None:
-            raise ValueError(f"Step '{name}': a load_method must be provided if input_path is specified.")
-
         if params is None:
             params = {}
 
@@ -209,6 +256,7 @@ class Pipeline:
             params=params,
             input_data=input_data,
             input_path=input_path,
+            outputs=outputs,
             load_method=load_method,
             save_method=save_method,
             output_path=output_path,
