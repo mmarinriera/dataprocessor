@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from pytest_lazy_fixtures import lf
 
 from dataprocessor.pipeline import Pipeline
 from dataprocessor.pipeline import PipelineExecutionError
@@ -55,17 +56,114 @@ def test_step_init() -> None:
     step = Step(
         name="test",
         processor=lambda x: x,
+        input_data=5,
     )
-    step.data = 5
+    step.data = 10
 
 
 def test_step_access_data_before_solve() -> None:
     step = Step(
         name="test",
         processor=lambda x: x,
+        input_data=5,
     )
     with pytest.raises(AttributeError, match="Step 'test': Attempted data retrieval before solving."):
         step.data
+
+
+def test_step_validate_requires_input_source() -> None:
+    with pytest.raises(ValueError, match="Step 'step': must have either inputs, input data, or an input path."):
+        Step(name="step", processor=lambda x: x)
+
+
+def test_step_validate_requires_input_load_method_when_input_path_set(tmp_path: Path) -> None:
+    input_path = tmp_path / "input.csv"
+    input_path.write_text("1,2,3\n")
+
+    with pytest.raises(
+        ValueError,
+        match="Step 'step': an input_load_method must be provided if input_path is specified.",
+    ):
+        Step(name="step", processor=_return_same, input_path=input_path)
+
+
+def test_step_validate_requires_load_method_when_output_path_set() -> None:
+    with pytest.raises(
+        ValueError,
+        match="Step 'step': a load_method must be provided if output_path is specified.",
+    ):
+        Step(name="step", processor=_return_same, input_data=[1, 2, 3], output_path="output.csv")
+
+
+def test_step_validate_rejects_missing_input_file(tmp_path: Path) -> None:
+    missing_input_path = tmp_path / "missing.csv"
+
+    with pytest.raises(ValueError, match=f"Step 'step': input_path '{missing_input_path}' does not exist."):
+        Step(name="step", processor=_return_same, input_path=missing_input_path, input_load_method=_load_sequence_dummy)
+
+
+def test_step_validate_accepts_existing_input_file(tmp_path: Path) -> None:
+    input_path = tmp_path / "input.csv"
+    input_path.write_text("1,2,3\n")
+
+    step = Step(name="step", processor=_return_same, input_path=input_path, input_load_method=_load_sequence_dummy)
+
+    assert step.input_path == input_path
+
+
+def test_step_validate_multi_output_rejects_invalid_load_method_tuple_length() -> None:
+    with pytest.raises(
+        ValueError,
+        match="Step 'step': load_method must be a single callable or a tuple with 2 methods.",
+    ):
+        Step(
+            name="step",
+            processor=_return_same,
+            input_data=[1, 2, 3],
+            outputs=["left", "right"],
+            load_method=(_load_sequence_dummy, _load_sequence_dummy, _load_sequence_dummy),
+        )
+
+
+def test_step_validate_multi_output_rejects_invalid_save_method_tuple_length() -> None:
+    with pytest.raises(
+        ValueError,
+        match="Step 'step': save_method must be a single callable or a tuple with 2 methods.",
+    ):
+        Step(
+            name="step",
+            processor=_return_same,
+            input_data=[1, 2, 3],
+            outputs=["left", "right"],
+            load_method=_load_sequence_dummy,
+            save_method=(_save_sequence_csv, _save_sequence_csv, _save_sequence_csv),
+        )
+
+
+def test_step_validate_multi_output_accepts_single_load_and_save_method() -> None:
+    step = Step(
+        name="step",
+        processor=_return_same,
+        input_data=[1, 2, 3],
+        outputs=["left", "right"],
+        load_method=_load_sequence_dummy,
+        save_method=_save_sequence_csv,
+    )
+
+    assert step.outputs == ["left", "right"]
+
+
+def test_step_validate_multi_output_accepts_matching_tuple_lengths() -> None:
+    step = Step(
+        name="step",
+        processor=_return_same,
+        input_data=[1, 2, 3],
+        outputs=["left", "right"],
+        load_method=(_load_sequence_dummy, _load_sequence_dummy),
+        save_method=(_save_sequence_csv, _save_sequence_csv),
+    )
+
+    assert step.outputs == ["left", "right"]
 
 
 @pytest.mark.parametrize(
@@ -115,6 +213,7 @@ def test_pipeline_add_step(subtests: pytest.Subtests) -> None:
         "processor": lambda x: x,
         "inputs": "step_0",
         "output_path": "/some/output/path",
+        "load_method": lambda x: x,
     }
     pipeline.add_step(**step_data_1)
 
@@ -129,6 +228,7 @@ def test_pipeline_add_step(subtests: pytest.Subtests) -> None:
         "processor": lambda x: x,
         "inputs": ["step_0", "step_1"],
         "output_path": "/some/output/path",
+        "load_method": lambda x: x,
     }
     pipeline.add_step(**step_data_2)
     with subtests.test("Step multiple inputs remain as list."):
@@ -140,6 +240,7 @@ def test_pipeline_add_step(subtests: pytest.Subtests) -> None:
                 "step_0": {
                     "processor": "some_processor",
                     "inputs": [],
+                    "outputs": {},
                     "params": {"some_param": 42},
                     "input_path": None,
                     "output_path": None,
@@ -148,6 +249,7 @@ def test_pipeline_add_step(subtests: pytest.Subtests) -> None:
                     "processor": "<lambda>",
                     "params": {},
                     "inputs": ["step_0"],
+                    "outputs": {},
                     "input_path": None,
                     "output_path": "/some/output/path",
                 },
@@ -155,6 +257,7 @@ def test_pipeline_add_step(subtests: pytest.Subtests) -> None:
                     "processor": "<lambda>",
                     "params": {},
                     "inputs": ["step_0", "step_1"],
+                    "outputs": {},
                     "input_path": None,
                     "output_path": "/some/output/path",
                 },
@@ -186,9 +289,10 @@ def test_pipeline_add_step(subtests: pytest.Subtests) -> None:
         "input_path": "/some/path",
     }
     with (
-        subtests.test("Step with input_path but no load_method"),
+        subtests.test("Step with input_path but no input_load_method"),
         pytest.raises(
-            ValueError, match="Step 'step_no_load_method': a load_method must be provided if input_path is specified."
+            ValueError,
+            match="Step 'step_no_load_method': an input_load_method must be provided if input_path is specified.",
         ),
     ):
         pipeline.add_step(**step_no_load_method)
@@ -197,9 +301,9 @@ def test_pipeline_add_step(subtests: pytest.Subtests) -> None:
 @pytest.mark.parametrize(
     "input_path, input_data, inputs, expected_output",
     [
-        ("/some/path", [3, 2, 1], ["step_0"], [1, 2, 3, 4]),
-        ("/some/path", None, ["step_0"], [1, 2, 3, 4]),
-        ("/some/path", None, None, [1, 2, 3, 4]),
+        ("some_path", [3, 2, 1], ["step_0"], [1, 2, 3, 4]),
+        ("some_path", None, ["step_0"], [1, 2, 3, 4]),
+        ("some_path", None, None, [1, 2, 3, 4]),
         (None, [3, 2, 1], ["step_0"], [3, 2, 1]),
         (None, [3, 2, 1], None, [3, 2, 1]),
         (None, None, ["step_0"], [1, 2, 3]),
@@ -210,7 +314,12 @@ def test_pipeline_run_input_precedence(
     input_data: list[int],
     inputs: list[str],
     expected_output: list[int],
+    tmp_path: Path,
 ) -> None:
+
+    full_input_path = tmp_path / input_path if input_path is not None else None
+    if full_input_path is not None:
+        full_input_path.touch()
 
     step_0: dict[str, Any] = {
         "name": "step_0",
@@ -221,10 +330,10 @@ def test_pipeline_run_input_precedence(
     step_1: dict[str, Any] = {
         "name": "step_1",
         "processor": _return_same,
-        "input_path": input_path,
+        "input_path": full_input_path,
         "input_data": input_data,
         "inputs": inputs,
-        "load_method": _load_sequence_dummy,
+        "input_load_method": _load_sequence_dummy,
     }
     pipeline = Pipeline()
     pipeline.add_step(**step_0)
@@ -234,7 +343,7 @@ def test_pipeline_run_input_precedence(
 
 
 def test_pipeline_run_autoload(tmp_path: Path, subtests: pytest.Subtests, caplog: pytest.LogCaptureFixture) -> None:
-    caplog.set_level("DEBUG")
+    caplog.set_level("DEBUG", logger="DataProcessor")
     input_path = tmp_path / "input.csv"
     with open(input_path, "w", newline="") as f:
         writer = csv.writer(f)
@@ -248,6 +357,7 @@ def test_pipeline_run_autoload(tmp_path: Path, subtests: pytest.Subtests, caplog
         "processor": _return_same,
         "input_path": input_path,
         "output_path": output_path_0,
+        "input_load_method": _load_sequence_csv,
         "load_method": _load_sequence_csv,
         "save_method": _save_sequence_csv,
     }
@@ -464,7 +574,14 @@ def test_pipeline_get_output(subtests: pytest.Subtests) -> None:
         assert pipeline.get_output("step_0") == [1, 2, 3]
 
 
-def test_pipeline_validate_types() -> None:
+@pytest.fixture
+def existing_input_file(tmp_path: Path) -> Path:
+    file_path = tmp_path / "dummy_file.csv"
+    file_path.touch()
+    return file_path
+
+
+def test_pipeline_validate_types(existing_input_file: Path) -> None:
     step_0_data: dict[str, Any] = {
         "name": "step_0",
         "processor": _return_same,
@@ -484,8 +601,8 @@ def test_pipeline_validate_types() -> None:
     step_0_data = {
         "name": "step_0",
         "processor": _return_same,
-        "input_path": "/some/path.csv",
-        "load_method": _load_sequence_dummy,
+        "input_path": existing_input_file,
+        "input_load_method": _load_sequence_dummy,
     }
     pipeline_1 = Pipeline()
     pipeline_1.add_step(**step_0_data)
@@ -500,8 +617,8 @@ def test_pipeline_validate_types() -> None:
             {
                 "name": "step_invalid_input_file",
                 "processor": _processor_str_sequence,
-                "input_path": "some_file.csv",
-                "load_method": _load_sequence_dummy,
+                "input_path": lf("existing_input_file"),
+                "input_load_method": _load_sequence_dummy,
             },
             "Step 'step_invalid_input_file': Input types do not match processor inputs.",
         ),

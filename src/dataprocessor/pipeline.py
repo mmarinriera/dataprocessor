@@ -121,7 +121,7 @@ class Step:
             raise ValueError(f"Step '{self.name}': an input_load_method must be provided if input_path is specified.")
 
         if self.output_path is not None and self.load_method is None:
-            raise ValueError(f"Step '{self.name}': a load_method(s) must be provided if output_path is specified.")
+            raise ValueError(f"Step '{self.name}': a load_method must be provided if output_path is specified.")
 
         if self.input_path is not None and not Path(self.input_path).exists():
             raise ValueError(f"Step '{self.name}': input_path '{self.input_path}' does not exist.")
