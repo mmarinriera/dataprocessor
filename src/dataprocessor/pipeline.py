@@ -1,7 +1,7 @@
+import itertools
 import json
 import sys
 from collections.abc import Callable
-from collections.abc import Iterable
 from concurrent.futures import Future
 from concurrent.futures import ProcessPoolExecutor
 from concurrent.futures import ThreadPoolExecutor
@@ -137,7 +137,7 @@ class Step:
                 f"Step '{self.name}': save_method must be a single callable or a tuple with {n_outputs} methods."
             )
 
-    def is_more_recent_than_output_files(self, files: str | Path | Iterable[str | Path]) -> bool:
+    def is_more_recent_than_output_files(self, files: str | Path | list[str | Path] | tuple[str | Path, ...]) -> bool:
         """
         Checks whether the files passed are more recent than the steps output files, if present.
 
@@ -154,7 +154,7 @@ class Step:
             )
             return False
 
-        files = list(files) if isinstance(files, (list,tuple)) else [files]
+        files = list(files) if isinstance(files, (list, tuple)) else [files]
         file_mtimes = [Path(file).stat().st_mtime for file in files]
 
         output_paths = list(self.output_path) if isinstance(self.output_path, tuple) else [self.output_path]
@@ -185,6 +185,9 @@ class Pipeline:
 
     def __init__(self, force_run: bool = True, metadata_path: str | Path | None = None) -> None:
         self.steps: dict[str, Step] = {}
+        self.step_output_map: dict[Step, list[str]] = {}
+        self.output_step_map: dict[str, Step] = {}
+
         self.force_run = force_run
 
         self.metadata_path = Path(metadata_path).with_suffix(".json") if metadata_path is not None else None
@@ -220,6 +223,7 @@ class Pipeline:
         self.metadata["steps"][step.name] = {
             "processor": getattr(step.processor, "__name__", "no_processor_name"),
             "inputs": step.inputs,
+            "outputs": step.outputs or {},
             "params": serializable_params,
             "input_path": str(step.input_path) if step.input_path else None,
             "output_path": str(step.output_path) if step.output_path else None,
@@ -292,6 +296,18 @@ class Pipeline:
 
         self.steps[name] = step
 
+        if outputs:
+            step_output_refs: list[str] = []
+            for output in outputs:
+                output_ref = f"{name}.{output}"
+                if output_ref in self.steps:
+                    raise ValueError(f"Step '{name}': output reference '{output_ref}' matches a step in the pipeline.")
+                if output_ref in itertools.chain(self.output_step_map, step_output_refs):
+                    raise ValueError(f"Step '{name}': output reference '{output_ref}' already exists in the pipeline.")
+                step_output_refs.append(output_ref)
+                self.output_step_map[output_ref] = step
+            self.step_output_map[step] = step_output_refs
+
         if self.track_metadata:
             self._update_metadata(step)
 
@@ -359,7 +375,18 @@ class Pipeline:
         """
         sorter: TopologicalSorterStr = TopologicalSorterStr()
         for step in self.steps.values():
-            sorter.add(step.name, *step.inputs)
+            step_inputs = []
+            for s_input in step.inputs:
+                if s_input in self.steps:
+                    step_inputs.append(s_input)
+                    continue
+                if s_input in self.output_step_map:
+                    input_step = self.output_step_map[s_input]
+                    step_inputs.append(input_step.name)
+                    continue
+                raise ValueError(f"Step '{step.name}': Step inputs not found while building DAG sorter.")
+
+            sorter.add(step.name, *step_inputs)
         return sorter
 
     def _failed_or_skipped_inputs(self, step: Step) -> bool:
@@ -383,6 +410,48 @@ class Pipeline:
 
         return False
 
+    def _resolve_input_reference(self, input_reference: str) -> Any:
+        """
+        Parses a reference to a step input, and returns the correct data object.
+
+        If the input reference matches a step name in the pipeline, `step.data` is returned.
+
+        Otherwise, if the input reference matches an output reference (defined in step.outputs),
+            ``step.data[reference_index]`` is returned, where reference_index is the index of the reference in
+            ``step.outputs``.
+
+        Args:
+            input_reference: Input reference to be resolved.
+
+        Returns:
+            Data object.
+
+        Raises:
+            Value error if input_reference doesn't match any step name, or any output reference registered in the pipeline.
+
+        """
+        if input_reference in self.steps:
+            return self.steps[input_reference].data
+
+        if input_reference in self.output_step_map:
+            step = self.output_step_map[input_reference]
+            output_refs = self.step_output_map.get(step)
+            if output_refs is None:
+                raise ValueError(
+                    f"Step '{step.name}': output reference '{input_reference}' is missing in step_output_map."
+                )
+
+            try:
+                output_index = output_refs.index(input_reference)
+            except ValueError as exc:
+                raise ValueError(
+                    f"Step '{step.name}': output reference '{input_reference}' was not registered for this step."
+                ) from exc
+
+            return step.data[output_index]
+
+        raise ValueError(f"Input reference '{input_reference}' not found in pipeline steps or output references.")
+
     def _get_input_values(self, step: Step) -> list[Any]:
         """
         Resolve positional input values for a step.
@@ -401,7 +470,7 @@ class Pipeline:
             logger.info(f"Step '{step.name}': Using provided input data.")
             return [step.input_data]
         logger.info(f"Step '{step.name}': Using provided input steps.")
-        return [self.steps[input_name].data for input_name in step.inputs]
+        return [self._resolve_input_reference(input_ref) for input_ref in step.inputs]
 
     def _attempt_output_load(self, step: Step) -> bool:
         """
