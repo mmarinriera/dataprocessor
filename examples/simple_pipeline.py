@@ -70,7 +70,7 @@ def main():
     - The pipeline will check if the output files exist and load them instead of re-running the steps.
 
     """)
-    pipeline_1 = Pipeline(force_run=False, metadata_path="./examples/data/pipeline_metadata.json")
+    pipeline_1 = Pipeline(force_run=False, metadata_path=data_path / "pipeline_metadata.json")
 
     pipeline_1.add_step(
         name="scaled",
