@@ -1,6 +1,7 @@
 import json
 import sys
 from collections.abc import Callable
+from collections.abc import Iterable
 from concurrent.futures import Future
 from concurrent.futures import ProcessPoolExecutor
 from concurrent.futures import ThreadPoolExecutor
@@ -8,6 +9,7 @@ from concurrent.futures import as_completed
 from dataclasses import dataclass
 from dataclasses import field
 from graphlib import TopologicalSorter
+from itertools import product
 from pathlib import Path
 from typing import Any
 from typing import Literal
@@ -135,7 +137,33 @@ class Step:
                 f"Step '{self.name}': save_method must be a single callable or a tuple with {n_outputs} methods."
             )
 
+    def is_more_recent_than_output_files(self, files: str | Path | Iterable[str | Path]) -> bool:
+        """
+        Checks whether the files passed are more recent than the steps output files, if present.
 
+        Args:
+            files: File paths to be checked against steps output paths.
+
+        Returns:
+            True if any of the input paths is more recent than the output paths
+
+        """
+        if self.output_path is None:
+            logger.debug(
+                f"Step '{self.name}': cannot compare file with output files because output_path is not defined."
+            )
+            return False
+
+        files = list(files) if isinstance(files, (list,tuple)) else [files]
+        file_mtimes = [Path(file).stat().st_mtime for file in files]
+
+        output_paths = list(self.output_path) if isinstance(self.output_path, tuple) else [self.output_path]
+        output_mtimes = [Path(output_path).stat().st_mtime for output_path in output_paths]
+
+        if any(i_mtime > o_mtime for i_mtime, o_mtime in product(file_mtimes, output_mtimes)):
+            logger.debug(f"some step input files '{files}' are newer than one of output files '{output_paths}'.")
+            return False
+        return True
 
 
 class Pipeline:
@@ -293,25 +321,15 @@ class Pipeline:
             return False
 
         # Check that the output file is newer than all input files
-        output_mtime = Path(step.output_path).stat().st_mtime
-
-        if step.input_path is not None:
-            input_mtime = Path(step.input_path).stat().st_mtime
-            if input_mtime > output_mtime:
-                logger.debug(f"step input file '{step.input_path}' is newer than output file '{step.output_path}'.")
-                return False
+        if step.input_path is not None and step.is_more_recent_than_output_files(step.input_path):
+            return False
 
         for input_name in step.inputs:
             input_step = self.steps[input_name]
             if input_step.output_path is None or not Path(input_step.output_path).exists():
                 logger.debug(f"input file not found. {input_step.output_path}")
                 return False
-
-            input_mtime = Path(input_step.output_path).stat().st_mtime
-            if input_mtime > output_mtime:
-                logger.debug(
-                    f"file from input step '{input_step.output_path}' is newer than output file '{step.output_path}'."
-                )
+            if step.is_more_recent_than_output_files(input_step.output_path):
                 return False
 
         if not self.track_metadata:
