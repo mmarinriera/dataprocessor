@@ -140,6 +140,21 @@ class Step:
                 f"Step '{self.name}': save_method must be a single callable or a tuple with {n_outputs} methods."
             )
 
+    def output_files_exist(self) -> bool:
+        """
+        Checks whether the files specified in ``output_path`` exist.
+
+        Returns:
+            True if all files specified in ``output_path`` exist, False otherwise.
+
+        """
+        if self.output_path is None:
+            return False
+
+        output_paths = list(self.output_path) if isinstance(self.output_path, tuple) else [self.output_path]
+
+        return all(Path(p).exists() for p in output_paths)
+
     def is_more_recent_than_output_files(self, files: str | Path | list[str | Path] | tuple[str | Path, ...]) -> bool:
         """
         Checks whether the files passed are more recent than the steps output files, if present.
@@ -167,6 +182,36 @@ class Step:
             logger.debug(f"some step input files '{files}' are newer than one of output files '{output_paths}'.")
             return False
         return True
+
+    def save_output(self) -> None:
+        """Save data to specified output files."""
+        if self.output_path is None or self.save_method is None:
+            logger.debug(f"Step '{self.name}': Output not save because output_path or output_method is not set.")
+            return
+
+        if not isinstance(self.output_path, tuple):
+            self.save_method(self.data, self.output_path)  # type: ignore
+            return
+
+        n_output_paths = len(self.output_path)
+        save_methods = (
+            n_output_paths * [self.save_method] if not isinstance(self.save_method, tuple) else self.save_method
+        )
+        for d, o_path, s_method in zip(self.data, self.output_path, save_methods, strict=True):
+            s_method(d, o_path)
+
+    def load_output(self) -> None:
+        """Load data attribute from specified output files."""
+        if not isinstance(self.output_path, tuple):
+            self.data = self.load_method(self.output_path)  # type: ignore
+            return
+
+        n_output_paths = len(self.output_path)
+        load_methods = (
+            n_output_paths * [self.load_method] if not isinstance(self.load_method, tuple) else list(self.load_method)
+        )
+
+        self.data = tuple(l_method(o_path) for o_path, l_method in zip(self.output_path, load_methods, strict=True))  # type: ignore
 
 
 class Pipeline:
@@ -338,7 +383,7 @@ class Pipeline:
             logger.debug(f"Step '{step.name}': Autoload not allowed because load_method or output_path is not defined.")
             return False
 
-        if not Path(step.output_path).exists():
+        if not step.output_files_exist():
             logger.debug(f"Step '{step.name}': Output file '{step.output_path}' does not exist.")
             return False
 
@@ -348,8 +393,8 @@ class Pipeline:
 
         for input_name in step.inputs:
             input_step = self.steps[input_name]
-            if input_step.output_path is None or not Path(input_step.output_path).exists():
-                logger.debug(f"input file not found. {input_step.output_path}")
+            if input_step.output_path is None or not input_step.output_files_exist():
+                logger.debug(f"input files not found. {input_step.output_path}")
                 return False
             if step.is_more_recent_than_output_files(input_step.output_path):
                 return False
@@ -493,7 +538,7 @@ class Pipeline:
             return False
         if self._autoload_allowed(step):
             logger.info(f"Step '{step.name}': Output file '{step.output_path}' found. Loading output from file.")
-            step.data = step.load_method(step.output_path)  # type: ignore
+            step.load_output()
             return True
         logger.info(f"Step '{step.name}': Output file '{step.output_path}' not found or outdated. Recomputing step.")
         return False
@@ -524,8 +569,7 @@ class Pipeline:
             try:
                 output = step.processor(*input_values, **step.params)
                 step.data = output
-                if step.save_method is not None and step.output_path is not None:
-                    step.save_method(output, step.output_path)
+                step.save_output()
             except BaseException as exc:
                 self.failed_steps.add(step_name)
                 self.errors[step_name] = exc
@@ -583,8 +627,7 @@ class Pipeline:
                     try:
                         output = future.result()
                         step.data = output
-                        if step.save_method is not None and step.output_path is not None:
-                            step.save_method(output, step.output_path)
+                        step.save_output()
                     except BaseException as exc:
                         self.failed_steps.add(step_name)
                         self.errors[step_name] = exc
