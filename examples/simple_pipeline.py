@@ -133,6 +133,7 @@ Pipeline 2:
         name="sorted",
         processor=sort,
         input_path=data_path / "input_sequence.csv",
+        input_load_method=load_sequence_csv,
         load_method=load_sequence_csv,
         save_method=save_sequence_csv,
         output_path=data_path / "output_2_sorted.csv",

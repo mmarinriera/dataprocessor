@@ -63,6 +63,7 @@ class Step:
     input_path: str | Path | None = None
     outputs: list[str] | None = None
     output_path: str | Path | tuple[str | Path, ...] | None = None
+    input_load_method: LoadMethod | None = None
     load_method: LoadMethod | tuple[LoadMethod, ...] | None = None
     save_method: SaveMethod | tuple[SaveMethod, ...] | None = None
     _data: Any | None = field(init=False, default=None)
@@ -102,7 +103,8 @@ class Step:
         Internal step data validation.
 
         - Check that theres is at least one input source: ``input_path``, ``input_data`` or ``inputs``.
-        - Check that ``load_method`` is specified if ``input_path`` or ``output_path`` are specified.
+        - Check that ``input_load_method`` is specified if ``input_path`` is specified.
+        - Check that ``load_method`` is specified if ``output_path`` are specified.
         - If ``input_path`` is set, check that the file exists.
         - If there are multiple outputs, check that there is a single load method, or as many as outputs.
         - If there are multiple outputs, check that there is a single save method, or as many as outputs.
@@ -115,10 +117,11 @@ class Step:
         if not has_input_source:
             raise ValueError(f"Step '{self.name}': must have either inputs, input data, or an input path.")
 
-        if (self.input_path is not None or self.output_path is not None) and self.load_method is None:
-            raise ValueError(
-                f"Step '{self.name}': a load_method must be provided if input_path or output_path is specified."
-            )
+        if self.input_path is not None and self.input_load_method is None:
+            raise ValueError(f"Step '{self.name}': an input_load_method must be provided if input_path is specified.")
+
+        if self.output_path is not None and self.load_method is None:
+            raise ValueError(f"Step '{self.name}': a load_method(s) must be provided if output_path is specified.")
 
         if self.input_path is not None and not Path(self.input_path).exists():
             raise ValueError(f"Step '{self.name}': input_path '{self.input_path}' does not exist.")
@@ -239,6 +242,7 @@ class Pipeline:
         input_path: str | Path | None = None,
         outputs: list[str] | None = None,
         output_path: str | Path | None = None,
+        input_load_method: LoadMethod | None = None,
         load_method: LoadMethod | tuple[LoadMethod, ...] | None = None,
         save_method: SaveMethod | tuple[SaveMethod, ...] | None = None,
     ) -> None:
@@ -261,8 +265,9 @@ class Pipeline:
                 if the processor produces multiple outputs (as a tuple).
                 If set to None, it is assumed the processor returns a single output.
             output_path: File path where output data is saved.
-                Requires ``save_method`` to be set
-            load_method: Function used to load data from ``input_path`` or cached output.
+                Requires ``save_method`` to be set.
+            input_load_method: Function used to load input data from ``input_path``.
+            load_method: Function used to load data cached output specified in ``output_path``.
             save_method: Function used to save output data to ``output_path``.
 
         Raises:
@@ -289,6 +294,7 @@ class Pipeline:
             input_data=input_data,
             input_path=input_path,
             outputs=outputs,
+            input_load_method=input_load_method,
             load_method=load_method,
             save_method=save_method,
             output_path=output_path,
@@ -465,7 +471,7 @@ class Pipeline:
         """
         if step.input_path is not None:
             logger.info(f"Step '{step.name}': Loading input from file,'{step.input_path}'.")
-            return [step.load_method(step.input_path)]  # type: ignore
+            return [step.input_load_method(step.input_path)]  # type: ignore
         if step.input_data is not None:
             logger.info(f"Step '{step.name}': Using provided input data.")
             return [step.input_data]
@@ -663,7 +669,7 @@ class Pipeline:
         """
         for step in self.steps.values():
             if step.input_path is not None:
-                input_types = [get_func_return_type_annotation(step.load_method)]  # type: ignore
+                input_types = [get_func_return_type_annotation(step.input_load_method)]  # type: ignore
             elif step.input_data is not None:
                 # Type validation for input data literals not supported.
                 input_types = []
