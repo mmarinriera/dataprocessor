@@ -1,5 +1,6 @@
 import csv
 import json
+import os
 import threading
 from pathlib import Path
 from typing import Any
@@ -164,6 +165,81 @@ def test_step_validate_multi_output_accepts_matching_tuple_lengths() -> None:
     )
 
     assert step.outputs == ["left", "right"]
+
+
+def _touch_with_mtime(path: Path, mtime: float) -> None:
+    path.touch()
+    os.utime(path, (mtime, mtime))
+
+
+def test_step_is_more_recent_than_output_files_without_output_path(tmp_path: Path) -> None:
+    input_file = tmp_path / "input.txt"
+    input_file.touch()
+    step = Step(name="step", processor=_return_same, inputs=["input"], load_method=_load_sequence_dummy)
+
+    assert not step.is_more_recent_than_output_files(input_file)
+
+
+@pytest.mark.parametrize(
+    "input_mtime, output_mtime, result",
+    [(1_000.0, 1_100.0, False), (1_100.0, 1_000.0, True)],
+)
+def test_step_is_more_recent_than_output_files(
+    input_mtime: float, output_mtime: float, result: bool, tmp_path: Path
+) -> None:
+    input_file = tmp_path / "input.txt"
+    output_file = tmp_path / "output.txt"
+
+    _touch_with_mtime(input_file, input_mtime)
+    _touch_with_mtime(output_file, output_mtime)
+
+    step = Step(
+        name="step",
+        processor=_return_same,
+        inputs=["input"],
+        output_path=output_file,
+        load_method=_load_sequence_dummy,
+    )
+
+    assert step.is_more_recent_than_output_files(input_file) == result
+
+
+@pytest.mark.parametrize(
+    "input_1_mtime, input_2_mtime, output_1_mtime, output_2_mtime, result",
+    [
+        (1_000.0, 1_000.0, 1_100.0, 1_100.0, False),
+        (1_000.0, 1_200.0, 1_100.0, 1_100.0, True),
+        (1_000.0, 1_200.0, 1_100.0, 1_300.0, True),
+    ],
+)
+def test_step_is_more_recent_than_output_files_multiple_inputs_outputs(
+    input_1_mtime: float,
+    input_2_mtime: float,
+    output_1_mtime: float,
+    output_2_mtime: float,
+    result: bool,
+    tmp_path: Path,
+) -> None:
+    input_1 = tmp_path / "input_1.txt"
+    input_2 = tmp_path / "input_2.txt"
+    output_1 = tmp_path / "output_1.txt"
+    output_2 = tmp_path / "output_2.txt"
+
+    _touch_with_mtime(input_1, input_1_mtime)
+    _touch_with_mtime(input_2, input_2_mtime)
+    _touch_with_mtime(output_1, output_1_mtime)
+    _touch_with_mtime(output_2, output_2_mtime)
+
+    step = Step(
+        name="step",
+        processor=_return_same,
+        inputs=["input"],
+        outputs=["output_1", "output_2"],
+        output_path=(output_1, output_2),
+        load_method=_load_sequence_dummy,
+    )
+
+    assert step.is_more_recent_than_output_files([input_1, input_2]) == result
 
 
 @pytest.mark.parametrize(

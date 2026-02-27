@@ -180,8 +180,8 @@ class Step:
 
         if any(i_mtime > o_mtime for i_mtime, o_mtime in product(file_mtimes, output_mtimes)):
             logger.debug(f"some step input files '{files}' are newer than one of output files '{output_paths}'.")
-            return False
-        return True
+            return True
+        return False
 
     def save_output(self) -> None:
         """Save data to specified output files."""
@@ -389,6 +389,7 @@ class Pipeline:
 
         # Check that the output file is newer than all input files
         if step.input_path is not None and step.is_more_recent_than_output_files(step.input_path):
+            logger.debug(f"Step '{step.name}': Input file is more recent than output files.")
             return False
 
         for input_name in step.inputs:
@@ -397,6 +398,7 @@ class Pipeline:
                 logger.debug(f"input files not found. {input_step.output_path}")
                 return False
             if step.is_more_recent_than_output_files(input_step.output_path):
+                logger.debug(f"Step '{step.name}': One or more input step files are more recent than output files.")
                 return False
 
         if not self.track_metadata:
