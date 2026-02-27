@@ -271,13 +271,20 @@ class Pipeline:
                     v = sorted(list(v))
                 serializable_params[k] = v
 
+        if step.output_path is None:
+            serialised_output_paths = None
+        else:
+            serialised_output_paths = (
+                [str(p) for p in step.output_path] if isinstance(step.output_path, tuple) else str(step.output_path)
+            )
+
         self.metadata["steps"][step.name] = {
             "processor": getattr(step.processor, "__name__", "no_processor_name"),
             "inputs": step.inputs,
             "outputs": step.outputs or {},
             "params": serializable_params,
             "input_path": str(step.input_path) if step.input_path else None,
-            "output_path": str(step.output_path) if step.output_path else None,
+            "output_path": serialised_output_paths,
         }
 
     def add_step(

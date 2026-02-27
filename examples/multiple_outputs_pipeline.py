@@ -148,7 +148,7 @@ Multiple-output pipeline:
     except NotImplementedError:
         print("Type validation for multiple outputs is not yet supported. Skipping validation...")
 
-    pipeline.run(parallel="thread", max_workers=2, fail_fast=False)
+    pipeline.run(parallel="process", max_workers=2, fail_fast=False)
 
     inflows, outflows = pipeline.get_output("split_cashflow")
     total_inflows = pipeline.get_output("total_inflows")

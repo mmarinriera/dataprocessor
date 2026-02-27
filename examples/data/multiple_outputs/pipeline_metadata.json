@@ -9,7 +9,10 @@
             ],
             "params": {},
             "input_path": "examples/data/multiple_outputs/daily_changes.csv",
-            "output_path": "(PosixPath('examples/data/multiple_outputs/inflows.csv'), PosixPath('examples/data/multiple_outputs/outflows.csv'))"
+            "output_path": [
+                "examples/data/multiple_outputs/inflows.csv",
+                "examples/data/multiple_outputs/outflows.csv"
+            ]
         },
         "total_inflows": {
             "processor": "total",
