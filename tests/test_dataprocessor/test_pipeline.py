@@ -31,10 +31,24 @@ def _load_sequence_csv(filename: str | Path) -> list[int]:
         return [int(x) for x in next(reader)]
 
 
+def _load_sequence_csv_colon(filename: str | Path) -> list[int]:
+    """Loads a list of integers from a CSV file with colon separator."""
+    with open(filename, newline="") as f:
+        reader = csv.reader(f, delimiter=":")
+        return [int(x) for x in next(reader)]
+
+
 def _save_sequence_csv(input: list[int], filename: str | Path) -> None:
     """Saves the input list as a CSV file."""
     with open(filename, "w", newline="") as f:
         writer = csv.writer(f)
+        writer.writerow(input)
+
+
+def _save_sequence_csv_colon(input: list[int], filename: str | Path) -> None:
+    """Saves the input list as a CSV file with colon separator."""
+    with open(filename, "w", newline="") as f:
+        writer = csv.writer(f, delimiter=":")
         writer.writerow(input)
 
 
@@ -48,6 +62,12 @@ def _filter_from_values(x: list[int], values: list[int]) -> list[int]:
 
 def _processor_str_sequence(x: list[str]) -> list[str]:
     return x
+
+
+def _split_odd_even(x: list[int]) -> tuple[list[int], list[int]]:
+    odd = [value for value in x if value % 2 != 0]
+    even = [value for value in x if value % 2 == 0]
+    return odd, even
 
 
 ###########################
@@ -240,6 +260,81 @@ def test_step_is_more_recent_than_output_files_multiple_inputs_outputs(
     )
 
     assert step.is_more_recent_than_output_files([input_1, input_2]) == result
+
+
+def test_step_save_output_multiple_save_methods(tmp_path: Path, subtests: pytest.Subtests) -> None:
+    output_path_1 = tmp_path / "output_1.csv"
+    output_path_2 = tmp_path / "output_2.csv"
+
+    step = Step(
+        name="step",
+        processor=_return_same,
+        inputs=["input"],
+        outputs=["odd", "even"],
+        output_path=(output_path_1, output_path_2),
+        load_method=_load_sequence_dummy,
+        save_method=_save_sequence_csv,
+    )
+
+    step.data = ([1, 3], [2, 4])
+    step.save_output()
+
+    with subtests.test("Check output files with one save method"):
+        assert output_path_1.read_text() == "1,3\n"
+        assert output_path_2.read_text() == "2,4\n"
+
+    step = Step(
+        name="step",
+        processor=_return_same,
+        inputs=["input"],
+        outputs=["odd", "even"],
+        output_path=(output_path_1, output_path_2),
+        load_method=_load_sequence_dummy,
+        save_method=(_save_sequence_csv, _save_sequence_csv_colon),
+    )
+
+    step.data = ([1, 3], [2, 4])
+    step.save_output()
+    with subtests.test("Check output files created with multiple save methods"):
+        assert output_path_1.read_text() == "1,3\n"
+        assert output_path_2.read_text() == "2:4\n"
+
+
+def test_step_load_output_multiple_load_methods(tmp_path: Path, subtests: pytest.Subtests) -> None:
+    output_path_1 = tmp_path / "output_1.csv"
+    output_path_1.write_text("1,3\n")
+    output_path_2 = tmp_path / "output_2.csv"
+    output_path_2.write_text("2,4\n")
+
+    step = Step(
+        name="step",
+        processor=_return_same,
+        inputs=["input"],
+        outputs=["odd", "even"],
+        output_path=(output_path_1, output_path_2),
+        load_method=_load_sequence_csv,
+        save_method=_save_sequence_csv,
+    )
+
+    step.load_output()
+
+    with subtests.test("Check data loaded with one load method"):
+        assert step.data == ([1, 3], [2, 4])
+
+    output_path_2.write_text("2:4\n")
+    step = Step(
+        name="step",
+        processor=_return_same,
+        inputs=["input"],
+        outputs=["odd", "even"],
+        output_path=(output_path_1, output_path_2),
+        load_method=(_load_sequence_csv, _load_sequence_csv_colon),
+        save_method=_save_sequence_csv,
+    )
+
+    step.load_output()
+    with subtests.test("Check data loaded with multiple load methods"):
+        assert step.data == ([1, 3], [2, 4])
 
 
 @pytest.mark.parametrize(
@@ -627,6 +722,104 @@ def test_pipeline_run_fail_fast_false_parallel() -> None:
     assert pipeline.get_output("ok") == 2
     with pytest.raises(AttributeError, match="Step 'downstream': Attempted data retrieval before solving."):
         pipeline.get_output("downstream")
+
+
+def test_pipeline_run_multiple_outputs(tmp_path: Path, subtests: pytest.Subtests) -> None:
+
+    step_0: dict[str, Any] = {
+        "name": "step_0",
+        "processor": _split_odd_even,
+        "input_data": [1, 2, 3, 4, 5, 6],
+        "outputs": ["odd", "even"],
+        "output_path": (tmp_path / "odd.csv", tmp_path / "even.csv"),
+        "load_method": _load_sequence_csv,
+        "save_method": _save_sequence_csv,
+    }
+    step_1: dict[str, Any] = {
+        "name": "step_1",
+        "processor": _scale,
+        "inputs": "step_0.odd",
+        "params": {"factor": 10},
+        "output_path": tmp_path / "odd_scaled.csv",
+        "load_method": _load_sequence_csv,
+        "save_method": _save_sequence_csv,
+    }
+    step_2: dict[str, Any] = {
+        "name": "step_2",
+        "processor": _scale,
+        "inputs": "step_0.even",
+        "params": {"factor": 100},
+        "output_path": tmp_path / "even_scaled.csv",
+        "load_method": _load_sequence_csv,
+        "save_method": _save_sequence_csv,
+    }
+    pipeline = Pipeline()
+    pipeline.add_step(**step_0)
+    pipeline.add_step(**step_1)
+    pipeline.add_step(**step_2)
+    pipeline.run()
+    with subtests.test("Check outputs of multiple output steps"):
+        assert pipeline.get_output("step_1") == ([10, 30, 50])
+        assert pipeline.get_output("step_2") == ([200, 400, 600])
+
+    step_wrong_input_ref: dict[str, Any] = {
+        "name": "step_wrong_input_ref",
+        "processor": _scale,
+        "inputs": "step_0.random",
+        "params": {"factor": 100},
+        "output_path": tmp_path / "even_scaled.csv",
+        "load_method": _load_sequence_csv,
+        "save_method": _save_sequence_csv,
+    }
+    pipeline_2 = Pipeline()
+    pipeline_2.add_step(**step_0)
+    pipeline_2.add_step(**step_wrong_input_ref)
+    with subtests.test("Check invalid input reference for multiple output step"):
+        with pytest.raises(ValueError, match="Step inputs not found while building DAG sorter."):
+            pipeline_2.run()
+
+    step_duplicated_output_names: dict[str, Any] = {
+        "name": "step_duplicated_output",
+        "processor": _split_odd_even,
+        "input_data": [1, 2, 3, 4, 5, 6],
+        "outputs": ["odd", "odd"],
+        "output_path": (tmp_path / "odd.csv", tmp_path / "even.csv"),
+        "load_method": _load_sequence_csv,
+        "save_method": _save_sequence_csv,
+    }
+    pipeline_3 = Pipeline()
+    with subtests.test("Check duplicate output names in multiple output step raises error"):
+        with pytest.raises(
+            ValueError,
+            match="Step 'step_duplicated_output': output reference 'step_duplicated_output.odd' already exists in the pipeline.",
+        ):
+            pipeline_3.add_step(**step_duplicated_output_names)
+
+    step_4: dict[str, Any] = {
+        "name": "step_4.odd",
+        "processor": _scale,
+        "input_data": [1, 2, 3, 4, 5, 6],
+        "output_path": tmp_path / "random.csv",
+        "load_method": _load_sequence_csv,
+        "save_method": _save_sequence_csv,
+    }
+
+    step_duplicated_ref: dict[str, Any] = {
+        "name": "step_4",
+        "processor": _split_odd_even,
+        "input_data": [1, 2, 3, 4, 5, 6],
+        "outputs": ["odd", "even"],
+        "output_path": (tmp_path / "odd.csv", tmp_path / "even.csv"),
+        "load_method": _load_sequence_csv,
+        "save_method": _save_sequence_csv,
+    }
+    pipeline_3 = Pipeline()
+    pipeline_3.add_step(**step_4)
+    with (
+        subtests.test("Check duplicate output names in multiple output step raises error"),
+        pytest.raises(ValueError, match="Step 'step_4': output reference 'step_4.odd' matches a step in the pipeline."),
+    ):
+        pipeline_3.add_step(**step_duplicated_ref)
 
 
 def test_pipeline_get_output(subtests: pytest.Subtests) -> None:

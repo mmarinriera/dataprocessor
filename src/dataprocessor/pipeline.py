@@ -497,14 +497,14 @@ class Pipeline:
             output_refs = self.step_output_map.get(step)
             if output_refs is None:
                 raise ValueError(
-                    f"Step '{step.name}': output reference '{input_reference}' is missing in step_output_map."
+                    f"Step '{step.name}': input reference '{input_reference}' is missing in step_output_map."
                 )
 
             try:
                 output_index = output_refs.index(input_reference)
             except ValueError as exc:
                 raise ValueError(
-                    f"Step '{step.name}': output reference '{input_reference}' was not registered for this step."
+                    f"Step '{step.name}': input reference '{input_reference}' was not registered for this step."
                 ) from exc
 
             return step.data[output_index]
