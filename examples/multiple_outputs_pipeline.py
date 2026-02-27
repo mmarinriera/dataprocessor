@@ -143,6 +143,11 @@ Multiple-output pipeline:
         save_method=save_report_json,
     )
 
+    try:
+        pipeline.validate_step_types()
+    except NotImplementedError:
+        print("Type validation for multiple outputs is not yet supported. Skipping validation...")
+
     pipeline.run(parallel="thread", max_workers=2, fail_fast=False)
 
     inflows, outflows = pipeline.get_output("split_cashflow")

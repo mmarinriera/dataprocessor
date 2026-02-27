@@ -879,6 +879,37 @@ def test_pipeline_validate_types(existing_input_file: Path) -> None:
     pipeline_1.validate_step_types()
 
 
+@pytest.mark.xfail(
+    reason="Validation does not currently support validating multiple outputs, but should be implemented in the future."
+)
+def test_pipeline_validate_types_multiple_outputs(existing_input_file: Path) -> None:
+
+    step_0_data: dict[str, Any] = {
+        "name": "step_0",
+        "processor": _split_odd_even,
+        "input_data": [1, 2, 3, 4, 5, 6],
+        "outputs": ["odd", "even"],
+    }
+    step_1_data: dict[str, Any] = {
+        "name": "step_1",
+        "processor": _scale,
+        "inputs": "step_0.odd",
+        "params": {"factor": 10},
+    }
+    step_2_data: dict[str, Any] = {
+        "name": "step_2",
+        "processor": _scale,
+        "inputs": "step_0.even",
+        "params": {"factor": 20},
+    }
+
+    pipeline_0 = Pipeline()
+    pipeline_0.add_step(**step_0_data)
+    pipeline_0.add_step(**step_1_data)
+    pipeline_0.add_step(**step_2_data)
+    pipeline_0.validate_step_types()
+
+
 @pytest.mark.parametrize(
     "step_data, expected_message",
     [

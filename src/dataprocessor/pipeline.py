@@ -719,6 +719,11 @@ class Pipeline:
 
         """
         for step in self.steps.values():
+            if step.outputs:
+                raise NotImplementedError(
+                    f"Step '{step.name}': Type validation for multiple outputs not yet supported."
+                )
+
             if step.input_path is not None:
                 input_types = [get_func_return_type_annotation(step.input_load_method)]  # type: ignore
             elif step.input_data is not None:
