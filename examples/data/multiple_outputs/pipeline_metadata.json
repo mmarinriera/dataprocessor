@@ -1,0 +1,57 @@
+{
+    "steps": {
+        "split_cashflow": {
+            "processor": "split_cashflow",
+            "inputs": [],
+            "outputs": [
+                "inflows",
+                "outflows"
+            ],
+            "params": {},
+            "input_path": "examples/data/multiple_outputs/daily_changes.csv",
+            "output_path": "(PosixPath('examples/data/multiple_outputs/inflows.csv'), PosixPath('examples/data/multiple_outputs/outflows.csv'))"
+        },
+        "total_inflows": {
+            "processor": "total",
+            "inputs": [
+                "split_cashflow.inflows"
+            ],
+            "outputs": {},
+            "params": {},
+            "input_path": null,
+            "output_path": "examples/data/multiple_outputs/total_inflows.txt"
+        },
+        "total_outflows": {
+            "processor": "total",
+            "inputs": [
+                "split_cashflow.outflows"
+            ],
+            "outputs": {},
+            "params": {},
+            "input_path": null,
+            "output_path": "examples/data/multiple_outputs/total_outflows.txt"
+        },
+        "largest_outflow": {
+            "processor": "max_value",
+            "inputs": [
+                "split_cashflow.outflows"
+            ],
+            "outputs": {},
+            "params": {},
+            "input_path": null,
+            "output_path": "examples/data/multiple_outputs/largest_outflow.txt"
+        },
+        "cashflow_report": {
+            "processor": "build_report",
+            "inputs": [
+                "total_inflows",
+                "total_outflows",
+                "largest_outflow"
+            ],
+            "outputs": {},
+            "params": {},
+            "input_path": null,
+            "output_path": "examples/data/multiple_outputs/cashflow_report.json"
+        }
+    }
+}

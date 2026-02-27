@@ -1,6 +1,6 @@
 import csv
-import logging
 import json
+import logging
 from pathlib import Path
 
 from dataprocessor import Pipeline
@@ -103,7 +103,7 @@ Multiple-output pipeline:
         processor=split_cashflow,
         input_path=data_path / "daily_changes.csv",
         input_load_method=load_sequence_csv,
-        outputs=["inflows","outflows"],
+        outputs=["inflows", "outflows"],
         output_path=(data_path / "inflows.csv", data_path / "outflows.csv"),
         load_method=load_sequence_csv,
         save_method=save_sequence_csv,

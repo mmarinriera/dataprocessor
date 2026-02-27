@@ -68,6 +68,9 @@ class Step:
     save_method: SaveMethod | tuple[SaveMethod, ...] | None = None
     _data: Any | None = field(init=False, default=None)
 
+    def __hash__(self) -> int:
+        return hash(self.name)
+
     def __post_init__(self) -> None:
         self._validate()
 
@@ -362,6 +365,16 @@ class Pipeline:
         if self.track_metadata:
             self._update_metadata(step)
 
+    def _get_step_name_from_input_reference(self, reference: str) -> str:
+        """Parses a reference to a step input, and returns the name of the corresponding step."""
+        if reference in self.steps:
+            return reference
+
+        if reference in self.output_step_map:
+            return self.output_step_map[reference].name
+
+        raise ValueError(f"Input reference not found: {reference}")
+
     def _autoload_allowed(self, step: Step) -> bool:
         """
         Check whether a step output can be loaded from disk, thus skipping processor execution.
@@ -392,8 +405,8 @@ class Pipeline:
             logger.debug(f"Step '{step.name}': Input file is more recent than output files.")
             return False
 
-        for input_name in step.inputs:
-            input_step = self.steps[input_name]
+        for input_ref in step.inputs:
+            input_step = self.steps[self._get_step_name_from_input_reference(input_ref)]
             if input_step.output_path is None or not input_step.output_files_exist():
                 logger.debug(f"input files not found. {input_step.output_path}")
                 return False
@@ -428,17 +441,10 @@ class Pipeline:
         """
         sorter: TopologicalSorterStr = TopologicalSorterStr()
         for step in self.steps.values():
-            step_inputs = []
-            for s_input in step.inputs:
-                if s_input in self.steps:
-                    step_inputs.append(s_input)
-                    continue
-                if s_input in self.output_step_map:
-                    input_step = self.output_step_map[s_input]
-                    step_inputs.append(input_step.name)
-                    continue
+            try:
+                step_inputs = [self._get_step_name_from_input_reference(r) for r in step.inputs]
+            except ValueError:
                 raise ValueError(f"Step '{step.name}': Step inputs not found while building DAG sorter.")
-
             sorter.add(step.name, *step_inputs)
         return sorter
 
