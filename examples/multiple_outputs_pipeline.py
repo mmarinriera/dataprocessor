@@ -59,10 +59,12 @@ def split_cashflow(changes: list[int]) -> tuple[list[int], list[int]]:
 
 
 def total(values: list[int]) -> int:
+    """Calculate the total sum of a list of integers."""
     return sum(values)
 
 
 def max_value(values: list[int]) -> int:
+    """Calculate the maximum value in a list of integers."""
     return max(values) if values else 0
 
 
@@ -73,10 +75,6 @@ def build_report(total_in: int, total_out: int, max_out: int) -> dict[str, int]:
         "net_balance": total_in - total_out,
         "largest_outflow": max_out,
     }
-
-
-def total(values: list[int]) -> int:
-    return sum(values)
 
 
 ###############################
@@ -92,7 +90,7 @@ def main() -> None:
     print("""*************************
 Multiple-output pipeline:
     - First step returns a tuple with two outputs: inflows and outflows.
-    - Downstream steps consume the tuple and use each branch independently.
+    - Downstream steps process each single output independently.
     - Each output is cached in its own file.
 """)
 

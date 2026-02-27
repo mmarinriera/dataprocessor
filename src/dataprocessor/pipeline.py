@@ -289,7 +289,7 @@ class Pipeline:
         input_data: Any = None,
         input_path: str | Path | None = None,
         outputs: list[str] | None = None,
-        output_path: str | Path | None = None,
+        output_path: str | Path | tuple[str | Path, ...] | None = None,
         input_load_method: LoadMethod | None = None,
         load_method: LoadMethod | tuple[LoadMethod, ...] | None = None,
         save_method: SaveMethod | tuple[SaveMethod, ...] | None = None,
@@ -312,11 +312,11 @@ class Pipeline:
             outputs: Names of outputs to reference in other steps,
                 if the processor produces multiple outputs (as a tuple).
                 If set to None, it is assumed the processor returns a single output.
-            output_path: File path where output data is saved.
+            output_path: File path/s where output data is saved.
                 Requires ``save_method`` to be set.
             input_load_method: Function used to load input data from ``input_path``.
-            load_method: Function used to load data cached output specified in ``output_path``.
-            save_method: Function used to save output data to ``output_path``.
+            load_method: Function/s used to load data cached output specified in ``output_path``.
+            save_method: Function/s used to save output data to ``output_path``.
 
         Raises:
             ValueError: If step name already exists or required input configuration is missing.
