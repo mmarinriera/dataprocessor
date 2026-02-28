@@ -55,6 +55,12 @@ def _split_odd_even(x: list[int]) -> tuple[list[int], list[int]]:
     return odd, even
 
 
+def _pop_max(x: list[int]) -> tuple[list[int], int]:
+    arg_max = x.index(max(x))
+    max_value = x.pop(arg_max)
+    return x, max_value
+
+
 def _unpack_sequence(x: list[int]) -> tuple[int, ...]:
     return tuple(x)
 
@@ -616,9 +622,6 @@ def test_pipeline_validate_types_no_return_annotation() -> None:
         pipeline_0.validate_step_types()
 
 
-@pytest.mark.xfail(
-    reason="Validation does not currently support validating multiple outputs, but should be implemented in the future."
-)
 def test_pipeline_validate_types_multiple_outputs() -> None:
 
     step_0_data: dict[str, Any] = {
@@ -635,9 +638,9 @@ def test_pipeline_validate_types_multiple_outputs() -> None:
     }
     step_2_data: dict[str, Any] = {
         "name": "step_2",
-        "processor": _scale,
+        "processor": _pop_max,
         "inputs": "step_0.even",
-        "params": {"factor": 20},
+        "outputs": ["popped", "max_value"],
     }
 
     pipeline_0 = Pipeline()

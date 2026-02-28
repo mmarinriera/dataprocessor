@@ -562,6 +562,25 @@ class Pipeline:
             raise ValueError(f"Step '{name}' does not exist in the pipeline.")
         return step.data
 
+    def _get_type_annotation_from_reference(self, reference: str) -> Any:
+        """
+        Get the return type annotation for a given input reference.
+
+        Args:
+            reference: Input reference to get the type annotation for.
+
+        Returns:
+            The return type annotation for the input reference.
+
+        """
+        step, output_index = self._map_reference_to_step_index(reference)
+        processor_return_type = get_func_return_type_annotation(step.processor)
+
+        if output_index is not None:
+            return get_args(processor_return_type)[output_index]
+
+        return processor_return_type
+
     def _validate_step_input_output_types(self, step: Step) -> None:
         """
         Validate that processor argument types match the return types of the input steps.
@@ -594,8 +613,7 @@ class Pipeline:
             # Type validation for input data literals not supported.
             input_types = []
         else:
-            input_steps = [self.steps[input_name] for input_name in step.inputs]
-            input_types = [get_func_return_type_annotation(input_step.processor) for input_step in input_steps]
+            input_types = [self._get_type_annotation_from_reference(input_ref) for input_ref in step.inputs]
 
         processor_arg_types = get_func_arg_type_annotations(step.processor)
         logger.debug(
