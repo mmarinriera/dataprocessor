@@ -109,6 +109,7 @@ def main() -> None:
         processor=lowercase,
         input_path=data_path / "input.txt",
         output_path=data_path / "lowercase.txt",
+        input_load_method=load_text,
         save_method=save_text,
         load_method=load_text,
     )

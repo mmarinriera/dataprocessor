@@ -1,3 +1,4 @@
+import itertools
 import json
 import sys
 from collections.abc import Callable
@@ -25,6 +26,9 @@ if sys.version_info >= (3, 11):
 else:
     TopologicalSorterStr: TypeAlias = TopologicalSorter
 
+LoadMethod = Callable[[str | Path], Any]
+SaveMethod = Callable[[Any, str | Path], None]
+
 
 logger = get_logger()
 
@@ -50,16 +54,52 @@ class PipelineExecutionError(RuntimeError):
 
 @dataclass
 class Step:
+    """
+    Definition of a processing step in the pipeline.
+
+    Attributes:
+        name: Name of the step.
+        processor: Callable that transforms step input(s) into output.
+        inputs: References to other steps' outputs to be passed as inputs to the processor.
+            If a step has a single output, it is referenced by the step name.
+            If a step has multiple outputs (defined in ``outputs``),
+            they are referenced by ``<step_name>.<output_name>``.
+            The data from those input steps will be passed as positional arguments to ``processor``.
+        params: Extra keyword arguments passed to ``processor``.
+        input_data: Literal input value passed as input to processor.
+            If ``input_data`` is set, other input sources will be ignored.
+        input_path: File path to load input data for step.
+            If ``input_path`` is set, `inputs` will be ignored.
+            Requires ``load_method`` to be set.
+        outputs: Names of outputs to reference in other steps,
+            if the processor produces multiple outputs (as a tuple).
+            If set to None, it is assumed the processor returns a single output.
+        output_path: File path/s where output data is saved.
+            Requires ``save_method`` to be set.
+        input_load_method: Function used to load input data from ``input_path``.
+        load_method: Function/s used to load data cached output specified in ``output_path``.
+        save_method: Function/s used to save output data to ``output_path``.
+
+    """
+
     name: str
     processor: Callable[..., Any]
     inputs: list[str] = field(default_factory=list)
     params: dict[str, Any] = field(default_factory=dict)
     input_data: Any = None
     input_path: str | Path | None = None
-    output_path: str | Path | None = None
-    load_method: Callable[[str | Path], Any] | None = None
-    save_method: Callable[[Any, str | Path], None] | None = None
+    outputs: list[str] | None = None
+    output_path: str | Path | tuple[str | Path, ...] | None = None
+    input_load_method: LoadMethod | None = None
+    load_method: LoadMethod | tuple[LoadMethod, ...] | None = None
+    save_method: SaveMethod | tuple[SaveMethod, ...] | None = None
     _data: Any | None = field(init=False, default=None)
+
+    def __hash__(self) -> int:
+        return hash(self.name)
+
+    def __post_init__(self) -> None:
+        self._validate()
 
     @property
     def data(self) -> Any:
@@ -88,6 +128,121 @@ class Step:
         """
         self._data = data
 
+    def _validate(self) -> None:
+        """
+        Internal step data validation.
+
+        - Check that theres is at least one input source: ``input_path``, ``input_data`` or ``inputs``.
+        - Check that ``input_load_method`` is specified if ``input_path`` is specified.
+        - Check that ``load_method`` is specified if ``output_path`` are specified.
+        - If ``input_path`` is set, check that the file exists.
+        - If there are multiple outputs, check that there is a single load method, or as many as outputs.
+        - If there are multiple outputs, check that there is a single save method, or as many as outputs.
+
+        Raises:
+            ValueError: If any of the checks fail.
+
+        """
+        has_input_source = bool(self.inputs) or self.input_data is not None or self.input_path is not None
+        if not has_input_source:
+            raise ValueError(f"Step '{self.name}': must have either inputs, input data, or an input path.")
+
+        if self.input_path is not None and self.input_load_method is None:
+            raise ValueError(f"Step '{self.name}': an input_load_method must be provided if input_path is specified.")
+
+        if self.output_path is not None and self.load_method is None:
+            raise ValueError(f"Step '{self.name}': a load_method must be provided if output_path is specified.")
+
+        if self.input_path is not None and not Path(self.input_path).exists():
+            raise ValueError(f"Step '{self.name}': input_path '{self.input_path}' does not exist.")
+
+        n_outputs = len(self.outputs) if self.outputs is not None else 1
+        if n_outputs <= 1:
+            return
+
+        if isinstance(self.load_method, tuple) and len(self.load_method) not in {1, n_outputs}:
+            raise ValueError(
+                f"Step '{self.name}': load_method must be a single callable or a tuple with {n_outputs} methods."
+            )
+
+        if isinstance(self.save_method, tuple) and len(self.save_method) not in {1, n_outputs}:
+            raise ValueError(
+                f"Step '{self.name}': save_method must be a single callable or a tuple with {n_outputs} methods."
+            )
+
+    def output_files_exist(self) -> bool:
+        """
+        Checks whether the files specified in ``output_path`` exist.
+
+        Returns:
+            True if all files specified in ``output_path`` exist, False otherwise.
+
+        """
+        if self.output_path is None:
+            return False
+
+        output_paths = list(self.output_path) if isinstance(self.output_path, tuple) else [self.output_path]
+
+        return all(Path(p).exists() for p in output_paths)
+
+    def is_more_recent_than_output_files(self, files: str | Path | list[str | Path] | tuple[str | Path, ...]) -> bool:
+        """
+        Checks whether the files passed are more recent than the steps output files, if present.
+
+        Args:
+            files: File paths to be checked against steps output paths.
+
+        Returns:
+            True if any of the input paths is more recent than the output paths
+
+        """
+        if self.output_path is None:
+            logger.debug(
+                f"Step '{self.name}': cannot compare file with output files because output_path is not defined."
+            )
+            return False
+
+        files = list(files) if isinstance(files, (list, tuple)) else [files]
+        file_mtimes = [Path(file).stat().st_mtime for file in files]
+
+        output_paths = list(self.output_path) if isinstance(self.output_path, tuple) else [self.output_path]
+        output_mtimes = [Path(output_path).stat().st_mtime for output_path in output_paths]
+
+        if any(i_mtime > o_mtime for i_mtime, o_mtime in itertools.product(file_mtimes, output_mtimes)):
+            logger.debug(f"some step input files '{files}' are newer than one of output files '{output_paths}'.")
+            return True
+        return False
+
+    def save_output(self) -> None:
+        """Save data to specified output files."""
+        if self.output_path is None or self.save_method is None:
+            logger.debug(f"Step '{self.name}': Output not save because output_path or output_method is not set.")
+            return
+
+        if not isinstance(self.output_path, tuple):
+            self.save_method(self.data, self.output_path)  # type: ignore
+            return
+
+        n_output_paths = len(self.output_path)
+        save_methods = (
+            n_output_paths * [self.save_method] if not isinstance(self.save_method, tuple) else self.save_method
+        )
+        for d, o_path, s_method in zip(self.data, self.output_path, save_methods, strict=True):
+            s_method(d, o_path)
+
+    def load_output(self) -> None:
+        """Load data attribute from specified output files."""
+        if not isinstance(self.output_path, tuple):
+            self.data = self.load_method(self.output_path)  # type: ignore
+            return
+
+        n_output_paths = len(self.output_path)
+        load_methods = (
+            n_output_paths * [self.load_method] if not isinstance(self.load_method, tuple) else list(self.load_method)
+        )
+
+        self.data = tuple(l_method(o_path) for o_path, l_method in zip(self.output_path, load_methods, strict=True))  # type: ignore
+
 
 class Pipeline:
     """
@@ -108,6 +263,9 @@ class Pipeline:
 
     def __init__(self, force_run: bool = True, metadata_path: str | Path | None = None) -> None:
         self.steps: dict[str, Step] = {}
+        self.step_output_map: dict[Step, list[str]] = {}
+        self.output_step_map: dict[str, Step] = {}
+
         self.force_run = force_run
 
         self.metadata_path = Path(metadata_path).with_suffix(".json") if metadata_path is not None else None
@@ -140,12 +298,20 @@ class Pipeline:
                     v = sorted(list(v))
                 serializable_params[k] = v
 
+        if step.output_path is None:
+            serialised_output_paths = None
+        else:
+            serialised_output_paths = (
+                [str(p) for p in step.output_path] if isinstance(step.output_path, tuple) else str(step.output_path)
+            )
+
         self.metadata["steps"][step.name] = {
             "processor": getattr(step.processor, "__name__", "no_processor_name"),
             "inputs": step.inputs,
+            "outputs": step.outputs or {},
             "params": serializable_params,
             "input_path": str(step.input_path) if step.input_path else None,
-            "output_path": str(step.output_path) if step.output_path else None,
+            "output_path": serialised_output_paths,
         }
 
     def add_step(
@@ -156,9 +322,11 @@ class Pipeline:
         params: dict[str, Any] | None = None,
         input_data: Any = None,
         input_path: str | Path | None = None,
-        output_path: str | Path | None = None,
-        load_method: Callable[[str | Path], Any] | None = None,
-        save_method: Callable[[Any, str | Path], None] | None = None,
+        outputs: list[str] | None = None,
+        output_path: str | Path | tuple[str | Path, ...] | None = None,
+        input_load_method: LoadMethod | None = None,
+        load_method: LoadMethod | tuple[LoadMethod, ...] | None = None,
+        save_method: SaveMethod | tuple[SaveMethod, ...] | None = None,
     ) -> None:
         """
         Register a new processing step in the pipeline.
@@ -166,19 +334,25 @@ class Pipeline:
         Args:
             name: Unique name of the step.
             processor: Callable that transforms step input(s) into output.
-            inputs: Upstream step name(s) that are inputs to the processor.
-                The output from those input steps will be passed as positional arguments
-                to ``processor``.
+            inputs: References to other steps' outputs to be passed as inputs to the processor.
+                If a step has a single output, it is referenced by the step name.
+                If a step has multiple outputs (defined in ``outputs``),
+                they are referenced by ``<step_name>.<output_name>``.
+                The data from those input steps will be passed as positional arguments to ``processor``.
             params: Extra keyword arguments passed to ``processor``.
             input_data: Literal input value passed as input to processor.
                 If ``input_data`` is set, other input sources will be ignored.
             input_path: File path to load input data for step.
                 If ``input_path`` is set, `inputs` will be ignored.
                 Requires ``load_method`` to be set.
-            output_path: File path where output data is saved.
-                Requires ``save_method`` to be set
-            load_method: Function used to load data from ``input_path`` or cached output.
-            save_method: Function used to save output data to ``output_path``.
+            outputs: Names of outputs to reference in other steps,
+                if the processor produces multiple outputs (as a tuple).
+                If set to None, it is assumed the processor returns a single output.
+            output_path: File path/s where output data is saved.
+                Requires ``save_method`` to be set.
+            input_load_method: Function used to load input data from ``input_path``.
+            load_method: Function/s used to load data cached output specified in ``output_path``.
+            save_method: Function/s used to save output data to ``output_path``.
 
         Raises:
             ValueError: If step name already exists or required input configuration is missing.
@@ -193,12 +367,6 @@ class Pipeline:
         if inputs is None:
             inputs = []
 
-        if not inputs and input_data is None and input_path is None:
-            raise ValueError(f"Step '{name}': must have either inputs, input data, or an input path.")
-
-        if input_path is not None and load_method is None:
-            raise ValueError(f"Step '{name}': a load_method must be provided if input_path is specified.")
-
         if params is None:
             params = {}
 
@@ -209,6 +377,8 @@ class Pipeline:
             params=params,
             input_data=input_data,
             input_path=input_path,
+            outputs=outputs,
+            input_load_method=input_load_method,
             load_method=load_method,
             save_method=save_method,
             output_path=output_path,
@@ -216,12 +386,34 @@ class Pipeline:
 
         self.steps[name] = step
 
+        if outputs:
+            step_output_refs: list[str] = []
+            for output in outputs:
+                output_ref = f"{name}.{output}"
+                if output_ref in self.steps:
+                    raise ValueError(f"Step '{name}': output reference '{output_ref}' matches a step in the pipeline.")
+                if output_ref in itertools.chain(self.output_step_map, step_output_refs):
+                    raise ValueError(f"Step '{name}': output reference '{output_ref}' already exists in the pipeline.")
+                step_output_refs.append(output_ref)
+                self.output_step_map[output_ref] = step
+            self.step_output_map[step] = step_output_refs
+
         if self.track_metadata:
             self._update_metadata(step)
 
+    def _get_step_name_from_input_reference(self, reference: str) -> str:
+        """Parses a reference to a step input, and returns the name of the corresponding step."""
+        if reference in self.steps:
+            return reference
+
+        if reference in self.output_step_map:
+            return self.output_step_map[reference].name
+
+        raise ValueError(f"Input reference not found: {reference}")
+
     def _autoload_allowed(self, step: Step) -> bool:
         """
-        Check whether a step output can be loaded from disk, thus skipping processor execution.
+        Check whether a step output can be loaded from file, thus skipping processor execution.
 
         The criteria for allowing auto-loading:
             - The output files from input steps, or the input file from current step need
@@ -233,37 +425,29 @@ class Pipeline:
             step: Step being evaluated for auto-loading.
 
         Returns:
-            bool: True if output auto-loading is allowed, False otherwise.
+            True if output auto-loading is allowed, False otherwise.
 
         """
         if step.load_method is None or step.output_path is None:
             logger.debug(f"Step '{step.name}': Autoload not allowed because load_method or output_path is not defined.")
             return False
 
-        if not Path(step.output_path).exists():
+        if not step.output_files_exist():
             logger.debug(f"Step '{step.name}': Output file '{step.output_path}' does not exist.")
             return False
 
         # Check that the output file is newer than all input files
-        output_mtime = Path(step.output_path).stat().st_mtime
+        if step.input_path is not None and step.is_more_recent_than_output_files(step.input_path):
+            logger.debug(f"Step '{step.name}': Input file is more recent than output files.")
+            return False
 
-        if step.input_path is not None:
-            input_mtime = Path(step.input_path).stat().st_mtime
-            if input_mtime > output_mtime:
-                logger.debug(f"step input file '{step.input_path}' is newer than output file '{step.output_path}'.")
+        for input_ref in step.inputs:
+            input_step = self.steps[self._get_step_name_from_input_reference(input_ref)]
+            if input_step.output_path is None or not input_step.output_files_exist():
+                logger.debug(f"input files not found. {input_step.output_path}")
                 return False
-
-        for input_name in step.inputs:
-            input_step = self.steps[input_name]
-            if input_step.output_path is None or not Path(input_step.output_path).exists():
-                logger.debug(f"input file not found. {input_step.output_path}")
-                return False
-
-            input_mtime = Path(input_step.output_path).stat().st_mtime
-            if input_mtime > output_mtime:
-                logger.debug(
-                    f"file from input step '{input_step.output_path}' is newer than output file '{step.output_path}'."
-                )
+            if step.is_more_recent_than_output_files(input_step.output_path):
+                logger.debug(f"Step '{step.name}': One or more input step files are more recent than output files.")
                 return False
 
         if not self.track_metadata:
@@ -288,12 +472,16 @@ class Pipeline:
         Build a topological sorter for current step dependencies.
 
         Returns:
-            TopologicalSorterStr: Sorter prepared with all pipeline step edges.
+            Sorter prepared with all pipeline step edges.
 
         """
         sorter: TopologicalSorterStr = TopologicalSorterStr()
         for step in self.steps.values():
-            sorter.add(step.name, *step.inputs)
+            try:
+                step_inputs = [self._get_step_name_from_input_reference(r) for r in step.inputs]
+            except ValueError:
+                raise ValueError(f"Step '{step.name}': Step inputs not found while building DAG sorter.")
+            sorter.add(step.name, *step_inputs)
         return sorter
 
     def _failed_or_skipped_inputs(self, step: Step) -> bool:
@@ -304,7 +492,7 @@ class Pipeline:
             step: Step whose dependencies are checked.
 
         Returns:
-            bool: True when execution should be skipped due to failed or skipped inputs.
+            True when execution should be skipped due to failed or skipped inputs.
 
         """
         blocked_inputs = [
@@ -317,6 +505,48 @@ class Pipeline:
 
         return False
 
+    def _resolve_input_reference(self, input_reference: str) -> Any:
+        """
+        Parses a reference to a step input, and returns the correct data object.
+
+        If the input reference matches a step name in the pipeline, `step.data` is returned.
+
+        Otherwise, if the input reference matches an output reference (defined in step.outputs),
+            ``step.data[reference_index]`` is returned, where reference_index is the index of the reference in
+            ``step.outputs``.
+
+        Args:
+            input_reference: Input reference to be resolved.
+
+        Returns:
+            Data object.
+
+        Raises:
+            ValueError: If input_reference doesn't match any step name, or any output reference registered in the pipeline.
+
+        """
+        if input_reference in self.steps:
+            return self.steps[input_reference].data
+
+        if input_reference in self.output_step_map:
+            step = self.output_step_map[input_reference]
+            output_refs = self.step_output_map.get(step)
+            if output_refs is None:
+                raise ValueError(
+                    f"Step '{step.name}': input reference '{input_reference}' is missing in step_output_map."
+                )
+
+            try:
+                output_index = output_refs.index(input_reference)
+            except ValueError as exc:
+                raise ValueError(
+                    f"Step '{step.name}': input reference '{input_reference}' was not registered for this step."
+                ) from exc
+
+            return step.data[output_index]
+
+        raise ValueError(f"Input reference '{input_reference}' not found in pipeline steps or output references.")
+
     def _get_input_values(self, step: Step) -> list[Any]:
         """
         Resolve positional input values for a step.
@@ -325,17 +555,17 @@ class Pipeline:
             step: Step to resolve inputs for.
 
         Returns:
-            list[Any]: Positional argument values to pass to the processor.
+            Positional argument values to pass to the processor.
 
         """
         if step.input_path is not None:
             logger.info(f"Step '{step.name}': Loading input from file,'{step.input_path}'.")
-            return [step.load_method(step.input_path)]  # type: ignore
+            return [step.input_load_method(step.input_path)]  # type: ignore
         if step.input_data is not None:
             logger.info(f"Step '{step.name}': Using provided input data.")
             return [step.input_data]
         logger.info(f"Step '{step.name}': Using provided input steps.")
-        return [self.steps[input_name].data for input_name in step.inputs]
+        return [self._resolve_input_reference(input_ref) for input_ref in step.inputs]
 
     def _attempt_output_load(self, step: Step) -> bool:
         """
@@ -345,14 +575,14 @@ class Pipeline:
             step: Step to load from cache when possible.
 
         Returns:
-            bool: True if cached output was loaded, False if recomputation is required.
+            True if cached output was loaded, False if recomputation is required.
 
         """
         if self.force_run:
             return False
         if self._autoload_allowed(step):
             logger.info(f"Step '{step.name}': Output file '{step.output_path}' found. Loading output from file.")
-            step.data = step.load_method(step.output_path)  # type: ignore
+            step.load_output()
             return True
         logger.info(f"Step '{step.name}': Output file '{step.output_path}' not found or outdated. Recomputing step.")
         return False
@@ -383,8 +613,7 @@ class Pipeline:
             try:
                 output = step.processor(*input_values, **step.params)
                 step.data = output
-                if step.save_method is not None and step.output_path is not None:
-                    step.save_method(output, step.output_path)
+                step.save_output()
             except BaseException as exc:
                 self.failed_steps.add(step_name)
                 self.errors[step_name] = exc
@@ -442,8 +671,7 @@ class Pipeline:
                     try:
                         output = future.result()
                         step.data = output
-                        if step.save_method is not None and step.output_path is not None:
-                            step.save_method(output, step.output_path)
+                        step.save_output()
                     except BaseException as exc:
                         self.failed_steps.add(step_name)
                         self.errors[step_name] = exc
@@ -497,7 +725,7 @@ class Pipeline:
             name: Step name whose output should be returned.
 
         Returns:
-            Any: Output value produced by the named step.
+            Output value produced by the named step.
 
         Raises:
             ValueError: If ``name`` does not exist in the pipeline.
@@ -527,8 +755,13 @@ class Pipeline:
 
         """
         for step in self.steps.values():
+            if step.outputs:
+                raise NotImplementedError(
+                    f"Step '{step.name}': Type validation for multiple outputs not yet supported."
+                )
+
             if step.input_path is not None:
-                input_types = [get_func_return_type_annotation(step.load_method)]  # type: ignore
+                input_types = [get_func_return_type_annotation(step.input_load_method)]  # type: ignore
             elif step.input_data is not None:
                 # Type validation for input data literals not supported.
                 input_types = []
