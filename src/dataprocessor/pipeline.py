@@ -553,6 +553,10 @@ class Pipeline:
             ValidationError: If processor argument types do not match input step return types.
 
         """
+        processor_return_type = get_func_return_type_annotation(step.processor)
+        if processor_return_type is None:
+            raise ValidationError(f"Step '{step.name}': processor must have a return type annotation.")
+
         if step.outputs:
             raise NotImplementedError(f"Step '{step.name}': Type validation for multiple outputs not yet supported.")
 

@@ -600,6 +600,18 @@ def test_pipeline_validate_types(existing_input_file: Path) -> None:
     pipeline_1.validate_step_types()
 
 
+def test_pipeline_validate_types_no_return_annotation() -> None:
+    step_0_data: dict[str, Any] = {
+        "name": "step_0",
+        "processor": lambda x: x,
+        "input_data": [1, 2, 3],
+    }
+    pipeline_0 = Pipeline()
+    pipeline_0.add_step(**step_0_data)
+    with pytest.raises(ValidationError, match="Step 'step_0': processor must have a return type annotation."):
+        pipeline_0.validate_step_types()
+
+
 @pytest.mark.xfail(
     reason="Validation does not currently support validating multiple outputs, but should be implemented in the future."
 )
