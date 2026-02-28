@@ -54,6 +54,34 @@ class PipelineExecutionError(RuntimeError):
 
 @dataclass
 class Step:
+    """
+    Definition of a processing step in the pipeline.
+
+    Attributes:
+        name: Name of the step.
+        processor: Callable that transforms step input(s) into output.
+        inputs: References to other steps' outputs to be passed as inputs to the processor.
+            If a step has a single output, it is referenced by the step name.
+            If a step has multiple outputs (defined in ``outputs``),
+            they are referenced by ``<step_name>.<output_name>``.
+            The data from those input steps will be passed as positional arguments to ``processor``.
+        params: Extra keyword arguments passed to ``processor``.
+        input_data: Literal input value passed as input to processor.
+            If ``input_data`` is set, other input sources will be ignored.
+        input_path: File path to load input data for step.
+            If ``input_path`` is set, `inputs` will be ignored.
+            Requires ``load_method`` to be set.
+        outputs: Names of outputs to reference in other steps,
+            if the processor produces multiple outputs (as a tuple).
+            If set to None, it is assumed the processor returns a single output.
+        output_path: File path/s where output data is saved.
+            Requires ``save_method`` to be set.
+        input_load_method: Function used to load input data from ``input_path``.
+        load_method: Function/s used to load data cached output specified in ``output_path``.
+        save_method: Function/s used to save output data to ``output_path``.
+
+    """
+
     name: str
     processor: Callable[..., Any]
     inputs: list[str] = field(default_factory=list)
@@ -112,7 +140,7 @@ class Step:
         - If there are multiple outputs, check that there is a single save method, or as many as outputs.
 
         Raises:
-            Value error if any of the checks fail.
+            ValueError: If any of the checks fail.
 
         """
         has_input_source = bool(self.inputs) or self.input_data is not None or self.input_path is not None
@@ -306,9 +334,11 @@ class Pipeline:
         Args:
             name: Unique name of the step.
             processor: Callable that transforms step input(s) into output.
-            inputs: Upstream step name(s) that are inputs to the processor.
-                The output from those input steps will be passed as positional arguments
-                to ``processor``.
+            inputs: References to other steps' outputs to be passed as inputs to the processor.
+                If a step has a single output, it is referenced by the step name.
+                If a step has multiple outputs (defined in ``outputs``),
+                they are referenced by ``<step_name>.<output_name>``.
+                The data from those input steps will be passed as positional arguments to ``processor``.
             params: Extra keyword arguments passed to ``processor``.
             input_data: Literal input value passed as input to processor.
                 If ``input_data`` is set, other input sources will be ignored.
@@ -383,7 +413,7 @@ class Pipeline:
 
     def _autoload_allowed(self, step: Step) -> bool:
         """
-        Check whether a step output can be loaded from disk, thus skipping processor execution.
+        Check whether a step output can be loaded from file, thus skipping processor execution.
 
         The criteria for allowing auto-loading:
             - The output files from input steps, or the input file from current step need
@@ -395,7 +425,7 @@ class Pipeline:
             step: Step being evaluated for auto-loading.
 
         Returns:
-            bool: True if output auto-loading is allowed, False otherwise.
+            True if output auto-loading is allowed, False otherwise.
 
         """
         if step.load_method is None or step.output_path is None:
@@ -442,7 +472,7 @@ class Pipeline:
         Build a topological sorter for current step dependencies.
 
         Returns:
-            TopologicalSorterStr: Sorter prepared with all pipeline step edges.
+            Sorter prepared with all pipeline step edges.
 
         """
         sorter: TopologicalSorterStr = TopologicalSorterStr()
@@ -462,7 +492,7 @@ class Pipeline:
             step: Step whose dependencies are checked.
 
         Returns:
-            bool: True when execution should be skipped due to failed or skipped inputs.
+            True when execution should be skipped due to failed or skipped inputs.
 
         """
         blocked_inputs = [
@@ -492,7 +522,7 @@ class Pipeline:
             Data object.
 
         Raises:
-            Value error if input_reference doesn't match any step name, or any output reference registered in the pipeline.
+            ValueError: If input_reference doesn't match any step name, or any output reference registered in the pipeline.
 
         """
         if input_reference in self.steps:
@@ -525,7 +555,7 @@ class Pipeline:
             step: Step to resolve inputs for.
 
         Returns:
-            list[Any]: Positional argument values to pass to the processor.
+            Positional argument values to pass to the processor.
 
         """
         if step.input_path is not None:
@@ -545,7 +575,7 @@ class Pipeline:
             step: Step to load from cache when possible.
 
         Returns:
-            bool: True if cached output was loaded, False if recomputation is required.
+            True if cached output was loaded, False if recomputation is required.
 
         """
         if self.force_run:
@@ -695,7 +725,7 @@ class Pipeline:
             name: Step name whose output should be returned.
 
         Returns:
-            Any: Output value produced by the named step.
+            Output value produced by the named step.
 
         Raises:
             ValueError: If ``name`` does not exist in the pipeline.

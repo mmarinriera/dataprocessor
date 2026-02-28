@@ -18,7 +18,7 @@ def get_func_return_type_annotation(func: Callable[..., Any]) -> Any:
         func: Callable object to inspect.
 
     Returns:
-        Any: The annotated return type, or ``None`` if not annotated.
+        The annotated return type, or ``None`` if not annotated.
 
     """
     return get_type_hints(func).get("return", None)
@@ -32,7 +32,7 @@ def get_func_arg_type_annotations(func: Callable[..., Any]) -> dict[str, Any]:
         func: Callable object to inspect.
 
     Returns:
-        dict[str, Any]: Mapping of argument names to annotated types.
+        Mapping of argument names to annotated types.
 
     """
     type_hints = get_type_hints(func)
@@ -52,7 +52,7 @@ def get_func_arg_types(func: Callable[..., Any]) -> dict[str, Any]:
         func: Callable object to inspect.
 
     Returns:
-        dict[str, Any]: Mapping of argument names to runtime-checkable types.
+        Mapping of argument names to runtime-checkable types.
 
     """
     type_hints = get_type_hints(func)
@@ -74,7 +74,7 @@ def get_func_required_args(func: Callable[..., Any]) -> list[str]:
         func: Callable object to inspect.
 
     Returns:
-        list[str]: Argument names that do not define default values.
+        Argument names that do not define default values.
 
     """
     sig = inspect.signature(func)
