@@ -585,6 +585,9 @@ class Pipeline:
         """
         required_arg_names = get_func_required_args(step.processor)
         n_inputs = len(step.inputs) or 1
+        if n_inputs >= len(required_arg_names):
+            return
+
         required_param_arg_names = required_arg_names[n_inputs:]
         for arg_name in required_param_arg_names:
             if arg_name not in step.params:
