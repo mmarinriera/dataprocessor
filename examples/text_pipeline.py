@@ -42,6 +42,12 @@ def save_word_freq(data: dict[str, int], filename: Path | str) -> None:
         f.writelines(f"{word},{freq}\n" for word, freq in data.items())
 
 
+def load_word_freq(filename: Path | str) -> dict[str, int]:
+    """Loads a dictionary of word frequencies from a text file."""
+    with open(filename) as f:
+        return {line.split(",")[0]: int(line.split(",")[1]) for line in f}
+
+
 ####### Data processors #######
 
 
@@ -149,6 +155,7 @@ def main() -> None:
         inputs="remove_stopwords",
         output_path=data_path / "word_frequency.txt",
         save_method=save_word_freq,
+        load_method=load_word_freq,
     )
 
     # Run pipeline

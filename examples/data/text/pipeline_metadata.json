@@ -3,6 +3,7 @@
         "lowercase": {
             "processor": "lowercase",
             "inputs": [],
+            "outputs": {},
             "params": {},
             "input_path": "examples/data/text/input.txt",
             "output_path": "examples/data/text/lowercase.txt"
@@ -12,6 +13,7 @@
             "inputs": [
                 "lowercase"
             ],
+            "outputs": {},
             "params": {},
             "input_path": null,
             "output_path": "examples/data/text/no_punctuation.txt"
@@ -21,6 +23,7 @@
             "inputs": [
                 "remove_punctuation"
             ],
+            "outputs": {},
             "params": {},
             "input_path": null,
             "output_path": "examples/data/text/tokens.csv"
@@ -30,6 +33,7 @@
             "inputs": [
                 "tokenize"
             ],
+            "outputs": {},
             "params": {
                 "stopwords": [
                     "a",
@@ -66,6 +70,7 @@
             "inputs": [
                 "remove_stopwords"
             ],
+            "outputs": {},
             "params": {
                 "most_common": 10
             },
