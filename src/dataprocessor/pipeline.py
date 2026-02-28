@@ -312,6 +312,40 @@ class Pipeline:
 
         return False
 
+    def _map_reference_to_step_index(self, reference: str) -> tuple[Step, None | int]:
+        """
+        Map an input reference to a step and output index.
+
+        Args:
+            reference: Input reference to be mapped.
+
+        Returns:
+            A tuple containing the step and the output index.
+
+        Raises:
+            ValueError: If input_reference doesn't match any step name, or any output reference registered in the pipeline.
+
+        """
+        if reference in self.steps:
+            return self.steps[reference], None
+
+        if reference in self.output_step_map:
+            step = self.output_step_map[reference]
+            output_refs = self.step_output_map.get(step)
+            if output_refs is None:
+                raise ValueError(f"Step '{step.name}': input reference '{reference}' is missing in step_output_map.")
+
+            try:
+                output_index = output_refs.index(reference)
+            except ValueError as exc:
+                raise ValueError(
+                    f"Step '{step.name}': input reference '{reference}' was not registered for this step."
+                ) from exc
+
+            return step, output_index
+
+        raise ValueError(f"Input reference '{reference}' not found in pipeline steps or output references.")
+
     def _resolve_input_reference(self, input_reference: str) -> Any:
         """
         Parses a reference to a step input, and returns the correct data object.
@@ -332,27 +366,11 @@ class Pipeline:
             ValueError: If input_reference doesn't match any step name, or any output reference registered in the pipeline.
 
         """
-        if input_reference in self.steps:
-            return self.steps[input_reference].data
+        step, data_index = self._map_reference_to_step_index(input_reference)
+        if data_index is None:
+            return step.data
 
-        if input_reference in self.output_step_map:
-            step = self.output_step_map[input_reference]
-            output_refs = self.step_output_map.get(step)
-            if output_refs is None:
-                raise ValueError(
-                    f"Step '{step.name}': input reference '{input_reference}' is missing in step_output_map."
-                )
-
-            try:
-                output_index = output_refs.index(input_reference)
-            except ValueError as exc:
-                raise ValueError(
-                    f"Step '{step.name}': input reference '{input_reference}' was not registered for this step."
-                ) from exc
-
-            return step.data[output_index]
-
-        raise ValueError(f"Input reference '{input_reference}' not found in pipeline steps or output references.")
+        return step.data[data_index]
 
     def _get_input_values(self, step: Step) -> list[Any]:
         """
