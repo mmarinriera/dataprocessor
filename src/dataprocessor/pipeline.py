@@ -9,7 +9,6 @@ from concurrent.futures import as_completed
 from dataclasses import dataclass
 from dataclasses import field
 from graphlib import TopologicalSorter
-from itertools import product
 from pathlib import Path
 from typing import Any
 from typing import Literal
@@ -181,7 +180,7 @@ class Step:
         output_paths = list(self.output_path) if isinstance(self.output_path, tuple) else [self.output_path]
         output_mtimes = [Path(output_path).stat().st_mtime for output_path in output_paths]
 
-        if any(i_mtime > o_mtime for i_mtime, o_mtime in product(file_mtimes, output_mtimes)):
+        if any(i_mtime > o_mtime for i_mtime, o_mtime in itertools.product(file_mtimes, output_mtimes)):
             logger.debug(f"some step input files '{files}' are newer than one of output files '{output_paths}'.")
             return True
         return False
