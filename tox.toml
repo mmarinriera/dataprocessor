@@ -1,5 +1,5 @@
 requires = [ "tox>=4" ]
-envlist = [ "py310", "py311", "py312", "py313", "coverage", "prek" ]
+envlist = [ "py310", "py311", "py312", "py313", "coverage", "examples", "prek" ]
 
 [env_run_base]
 description = "Running tests"
@@ -16,6 +16,15 @@ commands = [
   [ "coverage", "combine" ],
   [ "coverage", "report", "--fail-under=10" ],
   [ "coverage", "html" ],
+]
+
+[env.examples]
+description = "Running example scripts to ensure they work correctly."
+runner = "uv-venv-lock-runner"
+commands = [
+  [ "python", "examples/simple_pipeline.py" ],
+  [ "python", "examples/text_pipeline.py" ],
+  [ "python", "examples/multiple_outputs_pipeline.py" ],
 ]
 
 [env.prek]
