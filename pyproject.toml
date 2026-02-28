@@ -17,7 +17,7 @@ classifiers = [
   "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",
 ]
-dependencies = [  ]
+dependencies = []
 
 [dependency-groups]
 dev = [
@@ -26,8 +26,8 @@ dev = [
   "pytest-lazy-fixtures>=1.4",
 ]
 
-[tool.setuptools.packages.find]
-where = [ "src" ]
+[tool.setuptools]
+packages.find.where = [ "src" ]
 
 [tool.uv]
 required-version = ">=0.10.0"
@@ -36,7 +36,6 @@ required-version = ">=0.10.0"
 target-version = "py310"
 line-length = 120
 fix-only = true
-
 lint.select = [ "ALL" ]
 lint.ignore = [ "COM812", "D203", "D212" ]
 lint.isort.force-single-line = true
@@ -50,33 +49,25 @@ testpaths = [
 log_cli = true
 log_cli_level = "DEBUG"
 
-[tool.coverage.run]
-branch = true
-source = [ "dataprocessor" ]
-
-[tool.coverage.report]
+[tool.coverage]
+run.branch = true
+run.source = [ "dataprocessor" ]
 # Regexes for lines to exclude from consideration
-exclude_also = [
+report.exclude_also = [
+  # Don't complain about abstract methods, they aren't run:
+  "@(abc\\.)?abstractmethod",
   # Don't complain about missing debug-only code:
   "def __repr__",
+  "if __name__ == .__main__.:",
+  # Don't complain if non-runnable code isn't run:
+  "if 0:",
   "if self\\.debug",
-
   # Don't complain if tests don't hit defensive assertion code:
   "raise AssertionError",
   "raise NotImplementedError",
-
-  # Don't complain if non-runnable code isn't run:
-  "if 0:",
-  "if __name__ == .__main__.:",
-
-  # Don't complain about abstract methods, they aren't run:
-  "@(abc\\.)?abstractmethod",
 ]
-
-ignore_errors = true
-
-[tool.coverage.html]
-directory = ".coverage_html_report"
+report.ignore_errors = true
+html.directory = ".coverage_html_report"
 
 [tool.mypy]
 check_untyped_defs = true
