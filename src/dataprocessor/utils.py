@@ -1,6 +1,7 @@
 import inspect
 from collections.abc import Callable
 from collections.abc import Iterable
+from pathlib import Path
 from typing import Any
 from typing import get_origin
 from typing import get_type_hints
@@ -8,6 +9,10 @@ from typing import get_type_hints
 
 class ValidationError(Exception):
     """Pipeline step validation has failed."""
+
+
+LoadMethod = Callable[[str | Path], Any]
+SaveMethod = Callable[[Any, str | Path], None]
 
 
 def get_func_return_type_annotation(func: Callable[..., Any]) -> Any:

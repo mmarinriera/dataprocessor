@@ -2,7 +2,7 @@ exclude: ^(resources|tests/resources)/
 
 repos:
 -   repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.0
+    rev: v0.15.1
     hooks:
       - id: ruff
         name: Run ruff to auto-fix lint errors
@@ -27,13 +27,13 @@ repos:
         files: ^src/dataprocessor/|^tests
 
 -   repo: https://github.com/commitizen-tools/commitizen
-    rev: v4.11.6
+    rev: v4.13.7
     hooks:
       - id: commitizen
         stages: [commit-msg]
 
 -   repo: https://github.com/astral-sh/uv-pre-commit
-    rev: 0.10.0
+    rev: 0.10.2
     hooks:
     -   id: uv-lock
         name: Update uv lock file
@@ -45,18 +45,18 @@ repos:
       files: ^src/dataprocessor/
 
 - repo: https://github.com/tox-dev/pyproject-fmt
-  rev: v2.11.1
+  rev: v2.16.0
   hooks:
     - id: pyproject-fmt
 
 - repo: https://github.com/tox-dev/tox-toml-fmt
-  rev: v1.2.2
+  rev: v1.6.0
   hooks:
     - id: tox-toml-fmt
       files: tox.toml
 
 - repo: https://github.com/python-jsonschema/check-jsonschema
-  rev: 0.36.0
+  rev: 0.36.1
   hooks:
     - id: check-github-workflows
       args: ["--verbose"]

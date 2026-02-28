@@ -6,12 +6,11 @@ description = "Running tests"
 runner = "uv-venv-lock-runner"
 with_dev = true
 dependency_groups = [ "dev" ]
-
 commands = [ [ "coverage", "run", "-p", "-m", "pytest" ] ]
 
 [env.coverage]
 skip_install = true
-deps = [ "coverage[toml]" ]
+deps = "coverage[toml]"
 depends = [ "3.*" ]
 commands = [
   [ "coverage", "combine" ],
@@ -23,8 +22,7 @@ commands = [
 description = "Running pre-commit checks (formatting, linting, type checking) with prek."
 runner = "uv-venv-runner"
 skip_install = true
-deps = [ "prek==0.3.3" ]
-
+deps = "prek==0.3.4"
 commands = [
   [ "prek", "run", "--all-files", "--show-diff-on-failure" ],
 ]
