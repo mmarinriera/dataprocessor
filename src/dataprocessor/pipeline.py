@@ -11,6 +11,8 @@ from pathlib import Path
 from typing import Any
 from typing import Literal
 from typing import TypeAlias
+from typing import get_args
+from typing import get_origin
 
 from dataprocessor.logger import get_logger
 from dataprocessor.step import Step
@@ -558,7 +560,15 @@ class Pipeline:
             raise ValidationError(f"Step '{step.name}': processor must have a return type annotation.")
 
         if step.outputs:
-            raise NotImplementedError(f"Step '{step.name}': Type validation for multiple outputs not yet supported.")
+            if get_origin(processor_return_type) is not tuple:
+                raise ValidationError(
+                    f"Step '{step.name}': processor return type must be a tuple when multiple outputs are defined."
+                )
+            return_type_args = get_args(processor_return_type)
+            if len(step.outputs) != len(return_type_args) or Ellipsis in return_type_args:
+                raise ValidationError(
+                    f"Step '{step.name}': Processor return type annotation arguments do not match number of defined outputs."
+                )
 
         if step.input_path is not None:
             input_types = [get_func_return_type_annotation(step.input_load_method)]  # type: ignore
