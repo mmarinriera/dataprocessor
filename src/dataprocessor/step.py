@@ -185,7 +185,7 @@ class Step:
 
         n_output_paths = len(self.output_path)
         save_methods = (
-            n_output_paths * [self.save_method] if not isinstance(self.save_method, tuple) else self.save_method
+            n_output_paths * [self.save_method] if not isinstance(self.save_method, tuple) else list(self.save_method)
         )
         for d, o_path, s_method in zip(self.data, self.output_path, save_methods, strict=True):
             s_method(d, o_path)
