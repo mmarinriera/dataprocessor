@@ -385,7 +385,7 @@ class Pipeline:
         """
         if step.input_path is not None:
             logger.info(f"Step '{step.name}': Loading input from file,'{step.input_path}'.")
-            return [step.input_load_method(step.input_path)]  # type: ignore
+            return [step.load_input_from_file()]
         if step.input_data is not None:
             logger.info(f"Step '{step.name}': Using provided input data.")
             return [step.input_data]
@@ -615,8 +615,8 @@ class Pipeline:
             ValidationError: If processor argument types do not match input step return types.
 
         """
-        if step.input_path is not None:
-            input_types = [get_func_return_type_annotation(step.input_load_method)]  # type: ignore
+        if step.input_load_method is not None:
+            input_types = [get_func_return_type_annotation(step.input_load_method)]
         elif step.input_data is not None:
             # Type validation for input data literals not supported.
             input_types = []

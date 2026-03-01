@@ -1,5 +1,5 @@
 requires = [ "tox>=4" ]
-envlist = [ "py310", "py311", "py312", "py313", "coverage", "examples", "prek" ]
+envlist = [ "py310", "py311", "py312", "py313", "coverage", "examples", "prek", "ty" ]
 
 [env_run_base]
 description = "Running tests"
@@ -34,4 +34,13 @@ skip_install = true
 deps = "prek==0.3.4"
 commands = [
   [ "prek", "run", "--all-files", "--show-diff-on-failure" ],
+]
+
+[env.ty]
+description = "Running type checks with ty."
+runner = "uv-venv-runner"
+skip_install = true
+deps = "ty==0.0.19"
+commands = [
+  [ "ty", "check" ],
 ]
