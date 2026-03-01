@@ -173,8 +173,30 @@ class Step:
             return True
         return False
 
+    def load_input_from_file(self) -> Any:
+        """
+        Load step input data from file specified in ``input_path`` using ``input_load_method``.
+
+        Returns:
+            Loaded input data.
+
+        Raises:
+            ValueError: If input_path or input_load_method is not defined.
+
+        """
+        if self.input_path is None or self.input_load_method is None:
+            raise ValueError(
+                f"Step '{self.name}': cannot load input from file because input_path or input_load_method is not defined."
+            )
+
+        return self.input_load_method(self.input_path)
+
     def save_output(self) -> None:
-        """Save data to specified output files."""
+        """
+        Save data to specified output files.
+
+        Doesn't save data if output_path or save_method is not defined.
+        """
         if self.output_path is None or self.save_method is None:
             logger.debug(f"Step '{self.name}': Output not save because output_path or output_method is not set.")
             return
@@ -191,7 +213,18 @@ class Step:
             s_method(d, o_path)
 
     def load_output(self) -> None:
-        """Load data attribute from specified output files."""
+        """
+        Load data attribute from specified output files.
+
+        Raises:
+            ValueError: If output_path or load_method is not defined.
+
+        """
+        if self.load_method is None or self.output_path is None:
+            raise ValueError(
+                f"Step '{self.name}': cannot load output from file because load_method or output_path is not defined."
+            )
+
         if not isinstance(self.output_path, tuple):
             self.data = self.load_method(self.output_path)  # type: ignore
             return
@@ -201,4 +234,4 @@ class Step:
             n_output_paths * [self.load_method] if not isinstance(self.load_method, tuple) else list(self.load_method)
         )
 
-        self.data = tuple(l_method(o_path) for o_path, l_method in zip(self.output_path, load_methods, strict=True))  # type: ignore
+        self.data = tuple(l_method(o_path) for o_path, l_method in zip(self.output_path, load_methods, strict=True))
