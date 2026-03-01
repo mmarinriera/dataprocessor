@@ -143,10 +143,7 @@ Multiple-output pipeline:
         save_method=save_report_json,
     )
 
-    try:
-        pipeline.validate_step_types()
-    except NotImplementedError:
-        print("Type validation for multiple outputs is not yet supported. Skipping validation...")
+    pipeline.validate_step_types()
 
     pipeline.run(parallel="process", max_workers=2, fail_fast=False)
 

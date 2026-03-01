@@ -55,6 +55,16 @@ def _split_odd_even(x: list[int]) -> tuple[list[int], list[int]]:
     return odd, even
 
 
+def _pop_max(x: list[int]) -> tuple[list[int], int]:
+    arg_max = x.index(max(x))
+    max_value = x.pop(arg_max)
+    return x, max_value
+
+
+def _unpack_sequence(x: list[int]) -> tuple[int, ...]:
+    return tuple(x)
+
+
 ##########################################################################
 
 
@@ -600,10 +610,19 @@ def test_pipeline_validate_types(existing_input_file: Path) -> None:
     pipeline_1.validate_step_types()
 
 
-@pytest.mark.xfail(
-    reason="Validation does not currently support validating multiple outputs, but should be implemented in the future."
-)
-def test_pipeline_validate_types_multiple_outputs(existing_input_file: Path) -> None:
+def test_pipeline_validate_types_no_return_annotation() -> None:
+    step_0_data: dict[str, Any] = {
+        "name": "step_0",
+        "processor": lambda x: x,
+        "input_data": [1, 2, 3],
+    }
+    pipeline_0 = Pipeline()
+    pipeline_0.add_step(**step_0_data)
+    with pytest.raises(ValidationError, match="Step 'step_0': processor must have a return type annotation."):
+        pipeline_0.validate_step_types()
+
+
+def test_pipeline_validate_types_multiple_outputs() -> None:
 
     step_0_data: dict[str, Any] = {
         "name": "step_0",
@@ -619,9 +638,9 @@ def test_pipeline_validate_types_multiple_outputs(existing_input_file: Path) -> 
     }
     step_2_data: dict[str, Any] = {
         "name": "step_2",
-        "processor": _scale,
+        "processor": _pop_max,
         "inputs": "step_0.even",
-        "params": {"factor": 20},
+        "outputs": ["popped", "max_value"],
     }
 
     pipeline_0 = Pipeline()
@@ -674,6 +693,54 @@ def test_pipeline_validate_types_fails(step_data: dict[str, Any], expected_messa
     }
     pipeline = Pipeline()
     pipeline.add_step(**step_0_data)
+    pipeline.add_step(**step_data)
+    with pytest.raises(ValidationError, match=expected_message):
+        pipeline.validate_step_types()
+
+
+@pytest.mark.parametrize(
+    "step_data, expected_message",
+    [
+        (
+            {
+                "name": "step_no_return_tuple",
+                "processor": lambda x: x,
+                "input_data": [1, 2, 3],
+                "outputs": ["output"],
+            },
+            "Step 'step_no_return_tuple': processor must have a return type annotation.",
+        ),
+        (
+            {
+                "name": "step_return_not_tuple",
+                "processor": _scale,
+                "input_data": [1, 2, 3],
+                "outputs": ["output1", "output2"],
+            },
+            "Step 'step_return_not_tuple': processor return type must be a tuple when multiple outputs are defined.",
+        ),
+        (
+            {
+                "name": "step_return_type_does_not_match_n_outputs",
+                "processor": _split_odd_even,
+                "input_data": [1, 2, 3],
+                "outputs": ["output1", "output2", "output3"],
+            },
+            "Step 'step_return_type_does_not_match_n_outputs': Processor return type annotation arguments do not match number of defined outputs.",
+        ),
+        (
+            {
+                "name": "step_return_type_with_undefined_n_outputs",
+                "processor": _unpack_sequence,
+                "input_data": [1, 2, 3],
+                "outputs": ["output1", "output2", "output3"],
+            },
+            "Step 'step_return_type_with_undefined_n_outputs': Processor return type annotation arguments do not match number of defined outputs.",
+        ),
+    ],
+)
+def test_pipeline_validate_types_multiple_outputs_fails(step_data: dict[str, Any], expected_message: str) -> None:
+    pipeline = Pipeline()
     pipeline.add_step(**step_data)
     with pytest.raises(ValidationError, match=expected_message):
         pipeline.validate_step_types()
