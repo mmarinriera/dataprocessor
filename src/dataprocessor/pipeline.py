@@ -581,16 +581,13 @@ class Pipeline:
 
         return processor_return_type
 
-    def _validate_step_input_output_types(self, step: Step) -> None:
+    def _processor_return_type_sanity_check(self, step: Step) -> None:
         """
-        Validate that processor argument types match the return types of the input steps.
+        Check that the step processor has a return type annotation.
 
-        Args:
-            step: Step to validate.
-
-        Raises:
-            ValidationError: If processor argument types do not match input step return types.
-
+        If the step has multiple outputs defined:
+            - check that the processor return type is a tuple.
+            - check that the number of elements in the tuple matches the number of defined outputs.
         """
         processor_return_type = get_func_return_type_annotation(step.processor)
         if processor_return_type is None:
@@ -607,6 +604,17 @@ class Pipeline:
                     f"Step '{step.name}': Processor return type annotation arguments do not match number of defined outputs."
                 )
 
+    def _validate_step_input_output_types(self, step: Step) -> None:
+        """
+        Validate that processor argument types match the return types of the input steps.
+
+        Args:
+            step: Step to validate.
+
+        Raises:
+            ValidationError: If processor argument types do not match input step return types.
+
+        """
         if step.input_path is not None:
             input_types = [get_func_return_type_annotation(step.input_load_method)]  # type: ignore
         elif step.input_data is not None:
@@ -690,6 +698,7 @@ class Pipeline:
 
         """
         for step in self.steps.values():
+            self._processor_return_type_sanity_check(step)
             self._validate_step_input_output_types(step)
             self._check_all_required_processor_args_provided_by_params(step)
             self._validate_step_params(step)
