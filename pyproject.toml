@@ -84,3 +84,16 @@ warn_return_any = true
 warn_unreachable = true
 warn_unused_configs = true
 no_implicit_reexport = true
+
+[tool.semantic_release]
+build_command = """
+    uv lock --upgrade-package "$PACKAGE_NAME"
+    git add uv.lock
+    uv build
+"""
+version_toml = [ "pyproject.toml:project.version" ]
+branch = "main"
+commit_message = "chore(release): version {version}"
+allow_zero_version = true
+changelog.default_templates.changelog_file = "CHANGELOG.md"
+publish.upload_to_vcs_release = false
