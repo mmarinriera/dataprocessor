@@ -1,4 +1,4 @@
-name: Deployment
+name: Semantic Versioning
 
 on:
   push:
