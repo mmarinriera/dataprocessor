@@ -4,7 +4,7 @@ requires = [ "setuptools>=80", "wheel" ]
 
 [project]
 name = "dataprocessor"
-version = "0.1.0"
+version = "0.1.1"
 description = "Helper module to design and run robust and flexible data processing and analysis pipelines."
 readme = "README.md"
 license-files = [ "LICENSE" ]
