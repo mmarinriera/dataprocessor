@@ -216,7 +216,7 @@ class Pipeline:
         if reference in self.output_step_map:
             return self.output_step_map[reference].name
 
-        raise ValueError(f"Input reference not found: {reference}")
+        raise ValueError(f"Reference not found: {reference}")
 
     def _autoload_allowed(self, step: Step) -> bool:
         """
@@ -314,16 +314,16 @@ class Pipeline:
 
     def _map_reference_to_step_index(self, reference: str) -> tuple[Step, None | int]:
         """
-        Map an input reference to a step and output index.
+        Map a reference to a step and output index.
 
         Args:
-            reference: Input reference to be mapped.
+            reference: Reference to be mapped.
 
         Returns:
             A tuple containing the step and the output index.
 
         Raises:
-            ValueError: If input_reference doesn't match any step name, or any output reference registered in the pipeline.
+            ValueError: If ``reference`` doesn't match any step name, or any output reference registered in the pipeline.
 
         """
         if reference in self.steps:
@@ -333,40 +333,40 @@ class Pipeline:
             step = self.output_step_map[reference]
             output_refs = self.step_output_map.get(step)
             if output_refs is None:
-                raise ValueError(f"Step '{step.name}': input reference '{reference}' is missing in step_output_map.")
+                raise ValueError(f"Step '{step.name}': reference '{reference}' is missing in step_output_map.")
 
             try:
                 output_index = output_refs.index(reference)
             except ValueError as exc:
                 raise ValueError(
-                    f"Step '{step.name}': input reference '{reference}' was not registered for this step."
+                    f"Step '{step.name}': reference '{reference}' was not registered for this step."
                 ) from exc
 
             return step, output_index
 
-        raise ValueError(f"Input reference '{reference}' not found in pipeline steps or output references.")
+        raise ValueError(f"Reference '{reference}' not found in pipeline steps or output references.")
 
-    def _resolve_input_reference(self, input_reference: str) -> Any:
+    def _resolve_reference(self, reference: str) -> Any:
         """
-        Parses a reference to a step input, and returns the correct data object.
+        Parses a reference to a step's output, and returns the correct data item.
 
-        If the input reference matches a step name in the pipeline, `step.data` is returned.
+        If the ``reference`` matches a step name in the pipeline, `step.data` is returned.
 
-        Otherwise, if the input reference matches an output reference (defined in step.outputs),
-            ``step.data[reference_index]`` is returned, where reference_index is the index of the reference in
-            ``step.outputs``.
+        Otherwise, if ``reference`` matches an output reference (with the pattern ``<step_name>.<step_output>``),
+            the data item in ``step.data[reference_index]`` is returned, where reference_index is the index
+            of the reference in ``step.outputs``.
 
         Args:
-            input_reference: Input reference to be resolved.
+            reference: Reference to be resolved.
 
         Returns:
             Data object.
 
         Raises:
-            ValueError: If input_reference doesn't match any step name, or any output reference registered in the pipeline.
+            ValueError: If ``reference`` doesn't match any step name, or any output reference registered in the pipeline.
 
         """
-        step, data_index = self._map_reference_to_step_index(input_reference)
+        step, data_index = self._map_reference_to_step_index(reference)
         if data_index is None:
             return step.data
 
@@ -390,7 +390,7 @@ class Pipeline:
             logger.info(f"Step '{step.name}': Using provided input data.")
             return [step.input_data]
         logger.info(f"Step '{step.name}': Using provided input steps.")
-        return [self._resolve_input_reference(input_ref) for input_ref in step.inputs]
+        return [self._resolve_reference(input_ref) for input_ref in step.inputs]
 
     def _attempt_output_load(self, step: Step) -> bool:
         """
@@ -542,35 +542,35 @@ class Pipeline:
                 json.dump(self.metadata, f, indent=4)
                 f.write("\n")
 
-    def get_output(self, name: str) -> Any:
+    def get_output(self, reference: str) -> Any:
         """
         Retrieve output data for a named step.
 
         Args:
-            name: Step name whose output should be returned.
+            reference: Reference to the output item to be returned. If the reference corresponds to a step name,
+                the whole output will be returned, even if the step defines multiple outputs
+                (in which case a tuple of data item). If the step defines multiple outputs, and the reference
+                follows the pattern <step_name>.<output_name>, only the corresponding output item will be returned.
 
         Returns:
-            Output value produced by the named step.
+            Output value corresponding to the reference.
 
         Raises:
             ValueError: If ``name`` does not exist in the pipeline.
             AttributeError: If the step has not produced output yet.
 
         """
-        step = self.steps.get(name)
-        if step is None:
-            raise ValueError(f"Step '{name}' does not exist in the pipeline.")
-        return step.data
+        return self._resolve_reference(reference)
 
     def _get_type_annotation_from_reference(self, reference: str) -> Any:
         """
-        Get the return type annotation for a given input reference.
+        Get the return type annotation for a given reference.
 
         Args:
-            reference: Input reference to get the type annotation for.
+            reference: Reference to get the type annotation for.
 
         Returns:
-            The return type annotation for the input reference.
+            The return type annotation for the reference.
 
         """
         step, output_index = self._map_reference_to_step_index(reference)
