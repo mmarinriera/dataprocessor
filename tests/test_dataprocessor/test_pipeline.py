@@ -456,7 +456,6 @@ def test_pipeline_run_fail_fast_false_parallel() -> None:
 
 
 def test_pipeline_run_multiple_outputs(tmp_path: Path, subtests: pytest.Subtests) -> None:
-
     step_0: dict[str, Any] = {
         "name": "step_0",
         "processor": _split_odd_even,
@@ -565,13 +564,44 @@ def test_pipeline_get_output(subtests: pytest.Subtests) -> None:
         with pytest.raises(AttributeError, match="Step 'step_0': Attempted data retrieval before solving."):
             pipeline.get_output("step_0")
 
-    with subtests.test("Attempting to get output from a step not in the pipeline."):
-        with pytest.raises(ValueError, match="Step 'step_1' does not exist in the pipeline."):
-            pipeline.get_output("step_1")
+    with (
+        subtests.test("Attempting to get output from a step not in the pipeline."),
+        pytest.raises(ValueError, match="Input reference 'step_1' not found in pipeline steps or output references."),
+    ):
+        pipeline.get_output("step_1")
 
     pipeline.run()
     with subtests.test("Getting output after running pipeline."):
         assert pipeline.get_output("step_0") == [1, 2, 3]
+
+
+def test_pipeline_get_output_multiple_outputs(tmp_path: Path, subtests: pytest.Subtests) -> None:
+    step_0: dict[str, Any] = {
+        "name": "step_0",
+        "processor": _split_odd_even,
+        "input_data": [1, 2, 3, 4, 5, 6],
+        "outputs": ["odd", "even"],
+        "output_path": (tmp_path / "odd.csv", tmp_path / "even.csv"),
+        "load_method": _load_sequence_csv,
+        "save_method": _save_sequence_csv,
+    }
+    pipeline = Pipeline()
+    pipeline.add_step(**step_0)
+    pipeline.run()
+    with subtests.test("Retrieve whole step output"):
+        assert pipeline.get_output("step_0") == ([1, 3, 5], [2, 4, 6])
+
+    with subtests.test("Retrieve single output items separately"):
+        assert pipeline.get_output("step_0.odd") == [1, 3, 5]
+        assert pipeline.get_output("step_0.even") == [2, 4, 6]
+
+    with (
+        subtests.test("Attempt to retrieve non-existing reference"),
+        pytest.raises(
+            ValueError, match="Input reference 'step_0.other' not found in pipeline steps or output references."
+        ),
+    ):
+        pipeline.get_output("step_0.other")
 
 
 @pytest.fixture
@@ -623,7 +653,6 @@ def test_pipeline_validate_types_no_return_annotation() -> None:
 
 
 def test_pipeline_validate_types_multiple_outputs() -> None:
-
     step_0_data: dict[str, Any] = {
         "name": "step_0",
         "processor": _split_odd_even,

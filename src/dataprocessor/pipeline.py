@@ -542,25 +542,25 @@ class Pipeline:
                 json.dump(self.metadata, f, indent=4)
                 f.write("\n")
 
-    def get_output(self, name: str) -> Any:
+    def get_output(self, reference: str) -> Any:
         """
         Retrieve output data for a named step.
 
         Args:
-            name: Step name whose output should be returned.
+            reference: Reference to the output item to be returned. If the reference corresponds to a step name,
+                the whole output will be returned, even if the step defines multiple outputs
+                (in which case a tuple of data item). If the step defines multiple outputs, and the reference
+                follows the pattern <step_name>.<output_name>, only the corresponding output item will be returned.
 
         Returns:
-            Output value produced by the named step.
+            Output value corresponding to the reference.
 
         Raises:
             ValueError: If ``name`` does not exist in the pipeline.
             AttributeError: If the step has not produced output yet.
 
         """
-        step = self.steps.get(name)
-        if step is None:
-            raise ValueError(f"Step '{name}' does not exist in the pipeline.")
-        return step.data
+        return self._resolve_input_reference(reference)
 
     def _get_type_annotation_from_reference(self, reference: str) -> Any:
         """
