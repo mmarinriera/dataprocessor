@@ -566,7 +566,7 @@ def test_pipeline_get_output(subtests: pytest.Subtests) -> None:
 
     with (
         subtests.test("Attempting to get output from a step not in the pipeline."),
-        pytest.raises(ValueError, match="Input reference 'step_1' not found in pipeline steps or output references."),
+        pytest.raises(ValueError, match="Reference 'step_1' not found in pipeline steps or output references."),
     ):
         pipeline.get_output("step_1")
 
@@ -597,9 +597,7 @@ def test_pipeline_get_output_multiple_outputs(tmp_path: Path, subtests: pytest.S
 
     with (
         subtests.test("Attempt to retrieve non-existing reference"),
-        pytest.raises(
-            ValueError, match="Input reference 'step_0.other' not found in pipeline steps or output references."
-        ),
+        pytest.raises(ValueError, match="Reference 'step_0.other' not found in pipeline steps or output references."),
     ):
         pipeline.get_output("step_0.other")
 
