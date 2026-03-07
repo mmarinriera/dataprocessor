@@ -147,7 +147,8 @@ Multiple-output pipeline:
 
     pipeline.run(parallel="process", max_workers=2, fail_fast=False)
 
-    inflows, outflows = pipeline.get_output("split_cashflow")
+    inflows = pipeline.get_output("split_cashflow.inflows")
+    outflows = pipeline.get_output("split_cashflow.outflows")
     total_inflows = pipeline.get_output("total_inflows")
     total_outflows = pipeline.get_output("total_outflows")
     largest_outflow = pipeline.get_output("largest_outflow")
