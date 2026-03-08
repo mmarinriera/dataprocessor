@@ -1,6 +1,6 @@
 # DataProcessor
 
-`dataprocessor` is a lightweight Python module for building structured and reproducible data processing pipelines
+DataProcessor is a lightweight Python module for building structured and reproducible data processing pipelines
 within in your Python project.
 
 Pipelines are built by incrementally adding processing steps, which specify the input dependencies (as other steps),
@@ -59,7 +59,7 @@ pipeline.add_step(
     name="even_scaled",
     processor=scale,
     inputs="even_filtered",
-    params={factor: 2}
+    params={factor: 2},
     save_method=save_sequence_csv,
     load_method=load_sequence_csv,
 )
@@ -169,7 +169,7 @@ pipeline.add_step(
     name="even_scaled",
     processor=scale,
     inputs="even_filtered",
-    params={"factor": 2}
+    params={"factor": 2},
     save_method=save_sequence_csv,
     load_method=load_sequence_csv,
 )
