@@ -103,6 +103,8 @@ class Pipeline:
             for k, v in step.params.items():
                 if isinstance(v, set) or isinstance(v, frozenset):
                     v = sorted(list(v))
+                if isinstance(v, tuple):
+                    v = list(v)
                 serializable_params[k] = v
 
         if step.output_path is None:
@@ -112,10 +114,12 @@ class Pipeline:
                 [str(p) for p in step.output_path] if isinstance(step.output_path, tuple) else str(step.output_path)
             )
 
+        outputs = list(step.outputs) if isinstance(step.outputs, tuple) else step.outputs
+
         self.metadata["steps"][step.name] = {
             "processor": getattr(step.processor, "__name__", "no_processor_name"),
             "inputs": step.inputs,
-            "outputs": step.outputs or {},
+            "outputs": outputs or {},
             "params": serializable_params,
             "input_path": str(step.input_path) if step.input_path else None,
             "output_path": serialised_output_paths,
