@@ -2,6 +2,26 @@
 
 <!-- version list -->
 
+## v0.1.2 (2026-03-19)
+
+### Bug Fixes
+
+- Passing "outputs" in a list does not cause metadata mismatch in reruns
+  ([#13](https://github.com/mmarinriera/dataprocessor/pull/13),
+  [`61d0159`](https://github.com/mmarinriera/dataprocessor/commit/61d0159e98011e62c33f870b7877458f9c14e8a6))
+
+### Chores
+
+- Fix README
+  ([`e35947c`](https://github.com/mmarinriera/dataprocessor/commit/e35947cc99c3af466b330486433901c2eb500ec6))
+
+### Refactoring
+
+- Step arguments "outputs", "save_method" and "load_method" can
+  ([#13](https://github.com/mmarinriera/dataprocessor/pull/13),
+  [`61d0159`](https://github.com/mmarinriera/dataprocessor/commit/61d0159e98011e62c33f870b7877458f9c14e8a6))
+
+
 ## v0.1.1 (2026-03-07)
 
 ### Bug Fixes
