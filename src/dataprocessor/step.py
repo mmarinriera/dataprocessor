@@ -48,7 +48,7 @@ class Step:
     params: dict[str, Any] = field(default_factory=dict)
     input_data: Any = None
     input_path: str | Path | None = None
-    outputs: list[str] | tuple[str] | None = None
+    outputs: tuple[str, ...] | list[str] | None = None
     output_path: str | Path | tuple[str | Path, ...] | list[str | Path] | None = None
     input_load_method: LoadMethod | None = None
     load_method: LoadMethod | tuple[LoadMethod, ...] | list[LoadMethod] | None = None
