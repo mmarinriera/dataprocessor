@@ -356,6 +356,61 @@ def test_pipeline_autoload_metadata(
         assert pipeline_1.get_output("step_0") == [3, 6, 9]
 
 
+def test_pipeline_match_metadata(tmp_path: Path, subtests: pytest.Subtests, caplog: pytest.LogCaptureFixture) -> None:
+    output_path_0 = tmp_path / "step_0_output.csv"
+    output_path_even = tmp_path / "step_1_even.csv"
+    output_path_odd = tmp_path / "step_1_odd.csv"
+
+    step_0: dict[str, Any] = {
+        "name": "step_0",
+        "processor": _scale,
+        "input_data": [1, 2, 3],
+        "params": {"factor": 2},
+        "output_path": output_path_0,
+        "load_method": _load_sequence_csv,
+        "save_method": _save_sequence_csv,
+    }
+
+    step_1: dict[str, Any] = {
+        "name": "step_1",
+        "processor": _split_odd_even,
+        "inputs": "step_0",
+        "outputs": ["even", "odd"],
+        "output_path": (output_path_even, output_path_odd),
+        "load_method": _load_sequence_csv,
+        "save_method": _save_sequence_csv,
+    }
+
+    step_1_bis: dict[str, Any] = {
+        "name": "step_1",
+        "processor": _split_odd_even,
+        "inputs": "step_0",
+        "outputs": ("even", "odd"),
+        "output_path": (output_path_even, output_path_odd),
+        "load_method": _load_sequence_csv,
+        "save_method": _save_sequence_csv,
+    }
+
+    pipeline_0 = Pipeline(force_run=False, metadata_path=tmp_path / "metadata.json")
+    pipeline_0.add_step(**step_0)
+    pipeline_0.add_step(**step_1)
+    pipeline_0.run()
+
+    pipeline_1 = Pipeline(force_run=False, metadata_path=tmp_path / "metadata.json")
+    pipeline_1.add_step(**step_0)
+    pipeline_1.add_step(**step_1)
+
+    with subtests.test("Test that metadata matches tracked metadata when step fields use lists"):
+        assert pipeline_1._autoload_allowed(pipeline_1.steps["step_1"])
+
+    pipeline_2 = Pipeline(force_run=False, metadata_path=tmp_path / "metadata.json")
+    pipeline_2.add_step(**step_0)
+    pipeline_2.add_step(**step_1_bis)
+
+    with subtests.test("Test that metadata matches tracked metadata when step fields use tuples"):
+        assert pipeline_2._autoload_allowed(pipeline_2.steps["step_1"])
+
+
 def test_pipeline_run_parallel_thread_mode() -> None:
     branch_sync = threading.Barrier(2)
 
