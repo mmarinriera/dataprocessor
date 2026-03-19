@@ -111,7 +111,9 @@ class Pipeline:
             serialised_output_paths = None
         else:
             serialised_output_paths = (
-                [str(p) for p in step.output_path] if isinstance(step.output_path, tuple) else str(step.output_path)
+                [str(p) for p in step.output_path]
+                if isinstance(step.output_path, tuple | list)
+                else str(step.output_path)
             )
 
         outputs = list(step.outputs) if isinstance(step.outputs, tuple) else step.outputs

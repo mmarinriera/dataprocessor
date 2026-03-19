@@ -48,11 +48,11 @@ class Step:
     params: dict[str, Any] = field(default_factory=dict)
     input_data: Any = None
     input_path: str | Path | None = None
-    outputs: list[str] | None = None
-    output_path: str | Path | tuple[str | Path, ...] | None = None
+    outputs: list[str] | tuple[str] | None = None
+    output_path: str | Path | tuple[str | Path, ...] | list[str | Path] | None = None
     input_load_method: LoadMethod | None = None
-    load_method: LoadMethod | tuple[LoadMethod, ...] | None = None
-    save_method: SaveMethod | tuple[SaveMethod, ...] | None = None
+    load_method: LoadMethod | tuple[LoadMethod, ...] | list[LoadMethod] | None = None
+    save_method: SaveMethod | tuple[SaveMethod, ...] | list[SaveMethod] | None = None
     _data: Any | None = field(init=False, default=None)
 
     def __hash__(self) -> int:
@@ -120,12 +120,12 @@ class Step:
         if n_outputs <= 1:
             return
 
-        if isinstance(self.load_method, tuple) and len(self.load_method) not in {1, n_outputs}:
+        if isinstance(self.load_method, tuple | list) and len(self.load_method) not in {1, n_outputs}:
             raise ValueError(
                 f"Step '{self.name}': load_method must be a single callable or a tuple with {n_outputs} methods."
             )
 
-        if isinstance(self.save_method, tuple) and len(self.save_method) not in {1, n_outputs}:
+        if isinstance(self.save_method, tuple | list) and len(self.save_method) not in {1, n_outputs}:
             raise ValueError(
                 f"Step '{self.name}': save_method must be a single callable or a tuple with {n_outputs} methods."
             )
@@ -141,7 +141,7 @@ class Step:
         if self.output_path is None:
             return False
 
-        output_paths = list(self.output_path) if isinstance(self.output_path, tuple) else [self.output_path]
+        output_paths = list(self.output_path) if isinstance(self.output_path, tuple | list) else [self.output_path]
 
         return all(Path(p).exists() for p in output_paths)
 
@@ -162,10 +162,10 @@ class Step:
             )
             return False
 
-        files = list(files) if isinstance(files, (list, tuple)) else [files]
+        files = list(files) if isinstance(files, tuple | list) else [files]
         file_mtimes = [Path(file).stat().st_mtime for file in files]
 
-        output_paths = list(self.output_path) if isinstance(self.output_path, tuple) else [self.output_path]
+        output_paths = list(self.output_path) if isinstance(self.output_path, tuple | list) else [self.output_path]
         output_mtimes = [Path(output_path).stat().st_mtime for output_path in output_paths]
 
         if any(i_mtime > o_mtime for i_mtime, o_mtime in itertools.product(file_mtimes, output_mtimes)):
@@ -201,13 +201,15 @@ class Step:
             logger.debug(f"Step '{self.name}': Output not save because output_path or output_method is not set.")
             return
 
-        if not isinstance(self.output_path, tuple):
+        if not isinstance(self.output_path, tuple | list):
             self.save_method(self.data, self.output_path)  # type: ignore
             return
 
         n_output_paths = len(self.output_path)
         save_methods = (
-            n_output_paths * [self.save_method] if not isinstance(self.save_method, tuple) else list(self.save_method)
+            n_output_paths * [self.save_method]
+            if not isinstance(self.save_method, tuple | list)
+            else list(self.save_method)
         )
         for d, o_path, s_method in zip(self.data, self.output_path, save_methods, strict=True):
             s_method(d, o_path)
@@ -225,13 +227,15 @@ class Step:
                 f"Step '{self.name}': cannot load output from file because load_method or output_path is not defined."
             )
 
-        if not isinstance(self.output_path, tuple):
+        if not isinstance(self.output_path, tuple | list):
             self.data = self.load_method(self.output_path)  # type: ignore
             return
 
         n_output_paths = len(self.output_path)
         load_methods = (
-            n_output_paths * [self.load_method] if not isinstance(self.load_method, tuple) else list(self.load_method)
+            n_output_paths * [self.load_method]
+            if not isinstance(self.load_method, tuple | list)
+            else list(self.load_method)
         )
 
         self.data = tuple(l_method(o_path) for o_path, l_method in zip(self.output_path, load_methods, strict=True))
