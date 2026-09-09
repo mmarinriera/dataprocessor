@@ -25,6 +25,13 @@ repos:
     hooks:
     -   id: ty
 
+-   repo: https://github.com/rohaquinlop/complexipy-pre-commit
+    rev: v7.0.1
+    hooks:
+    -   id: complexipy
+        name: Check code cognitive complexity
+        args: ["--failed"]
+
 -   repo: https://github.com/commitizen-tools/commitizen
     rev: v4.18.0
     hooks:
