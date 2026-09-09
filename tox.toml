@@ -1,26 +1,26 @@
 requires = [ "tox>=4" ]
-envlist = [ "py310", "py311", "py312", "py313", "coverage", "examples", "prek", "ty" ]
+env_list = [ "py313", "py312", "py311", "py310", "coverage", "examples", "prek", "ty" ]
 
 [env_run_base]
-description = "Running tests"
 runner = "uv-venv-lock-runner"
-with_dev = true
+description = "Running tests"
 dependency_groups = [ "dev" ]
 commands = [ [ "coverage", "run", "-p", "-m", "pytest" ] ]
+with_dev = true
 
 [env.coverage]
 skip_install = true
 deps = "coverage[toml]"
-depends = [ "3.*" ]
 commands = [
   [ "coverage", "combine" ],
   [ "coverage", "report", "--fail-under=10" ],
   [ "coverage", "html" ],
 ]
+depends = [ "3.*" ]
 
 [env.examples]
-description = "Running example scripts to ensure they work correctly."
 runner = "uv-venv-lock-runner"
+description = "Running example scripts to ensure they work correctly."
 commands = [
   [ "python", "examples/simple_pipeline.py" ],
   [ "python", "examples/text_pipeline.py" ],
@@ -28,17 +28,17 @@ commands = [
 ]
 
 [env.prek]
-description = "Running pre-commit checks (formatting, linting, type checking) with prek."
 runner = "uv-venv-runner"
+description = "Running pre-commit checks (formatting, linting, type checking) with prek."
 skip_install = true
-deps = "prek==0.3.4"
+deps = "prek==0.5.2"
 commands = [
   [ "prek", "run", "--all-files", "--show-diff-on-failure" ],
 ]
 
 [env.ty]
-description = "Running type checks with ty."
 runner = "uv-venv-runner"
+description = "Running type checks with ty."
 skip_install = true
 deps = "ty==0.0.19"
 commands = [
