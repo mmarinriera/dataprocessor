@@ -2,7 +2,7 @@ exclude: ^(resources|tests/resources)/
 
 repos:
 -   repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.1
+    rev: v0.16.4
     hooks:
       - id: ruff
         name: Run ruff to auto-fix lint errors
@@ -20,43 +20,49 @@ repos:
     -   id: debug-statements
         language_version: python3
 
--   repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.19.1
+-   repo: https://github.com/astral-sh/ty-pre-commit
+    rev: v0.0.74
     hooks:
-    -   id: mypy
-        files: ^src/dataprocessor/|^tests
+    -   id: ty
+
+-   repo: https://github.com/rohaquinlop/complexipy-pre-commit
+    rev: v7.0.1
+    hooks:
+    -   id: complexipy
+        name: Check code cognitive complexity
+        args: ["--failed"]
 
 -   repo: https://github.com/commitizen-tools/commitizen
-    rev: v4.13.8
+    rev: v4.18.0
     hooks:
       - id: commitizen
         stages: [commit-msg]
 
 -   repo: https://github.com/astral-sh/uv-pre-commit
-    rev: 0.10.4
+    rev: 0.12.5
     hooks:
     -   id: uv-lock
         name: Update uv lock file
 
 - repo: https://github.com/jsh9/pydoclint
-  rev: 0.8.3
+  rev: 0.9.1
   hooks:
     - id: pydoclint
       files: ^src/dataprocessor/
 
 - repo: https://github.com/tox-dev/pyproject-fmt
-  rev: v2.16.1
+  rev: v2.28.1
   hooks:
     - id: pyproject-fmt
 
 - repo: https://github.com/tox-dev/tox-toml-fmt
-  rev: v1.6.0
+  rev: v1.9.3
   hooks:
     - id: tox-toml-fmt
       files: tox.toml
 
 - repo: https://github.com/python-jsonschema/check-jsonschema
-  rev: 0.36.2
+  rev: 0.38.0
   hooks:
     - id: check-github-workflows
       args: ["--verbose"]

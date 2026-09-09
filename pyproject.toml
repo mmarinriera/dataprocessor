@@ -1,6 +1,6 @@
 [build-system]
 build-backend = "setuptools.build_meta"
-requires = [ "setuptools>=80", "wheel" ]
+requires = [ "setuptools>=80" ]
 
 [project]
 name = "dataprocessor"
@@ -31,7 +31,7 @@ dev = [
 packages.find.where = [ "src" ]
 
 [tool.uv]
-required-version = ">=0.10.0"
+required-version = ">=0.12.0"
 
 [tool.ruff]
 target-version = "py310"
@@ -42,17 +42,17 @@ lint.ignore = [ "COM812", "D203", "D212" ]
 lint.isort.force-single-line = true
 
 [tool.pytest]
-minversion = "9.0"
 addopts = [ "-s" ]
+log_cli = true
+log_cli_level = "DEBUG"
+minversion = "9.0"
 testpaths = [
   "tests",
 ]
-log_cli = true
-log_cli_level = "DEBUG"
 
 [tool.coverage]
-run.branch = true
 run.source = [ "dataprocessor" ]
+run.branch = true
 # Regexes for lines to exclude from consideration
 report.exclude_also = [
   # Don't complain about abstract methods, they aren't run:
@@ -70,31 +70,14 @@ report.exclude_also = [
 report.ignore_errors = true
 html.directory = ".coverage_html_report"
 
-[tool.mypy]
-check_untyped_defs = true
-disallow_untyped_defs = true
-disallow_incomplete_defs = true
-disallow_untyped_calls = true
-disallow_any_generics = true
-ignore_missing_imports = true
-no_implicit_optional = true
-show_error_codes = true
-strict_equality = true
-warn_redundant_casts = true
-warn_return_any = true
-warn_unreachable = true
-warn_unused_configs = true
-no_implicit_reexport = true
-
 [tool.semantic_release]
-build_command = """
-    uv lock --upgrade-package "$PACKAGE_NAME"
+allow_zero_version = true
+version_toml = [ "pyproject.toml:project.version" ]
+build_command = '''    uv lock --upgrade-package "$PACKAGE_NAME"
     git add uv.lock
     uv build
-"""
-version_toml = [ "pyproject.toml:project.version" ]
-branch = "main"
+'''
 commit_message = "chore(release): version {version}"
-allow_zero_version = true
-changelog.default_templates.changelog_file = "CHANGELOG.md"
 publish.upload_to_vcs_release = false
+changelog.default_templates.changelog_file = "CHANGELOG.md"
+branch = "main"

@@ -88,16 +88,9 @@ class Pipeline:
         self.skipped_steps: set[str] = set()
         self.errors: dict[str, BaseException] = {}
 
-    def _update_metadata(self, step: Step) -> None:
-        """
-        Update in-memory metadata for a configured step.
-
-        Args:
-            step: Step to serialise into the metadata model.
-
-        """
-        # Ensure parameters that contain sets are JSON serialisable
-        # TODO: Consider adding other non-serialisable types.
+    def _ensure_serializable_params(self, step: Step) -> dict[str, Any]:
+        """Ensure parameters that contain sets are JSON serializable"""
+        # TODO: Consider adding other non-serializable types.
         serializable_params = {}
         if step.params:
             for k, v in step.params.items():
@@ -107,14 +100,27 @@ class Pipeline:
                     v = list(v)
                 serializable_params[k] = v
 
+        return serializable_params
+
+    def _serialize_output_paths(self, step: Step) -> str | list[str] | None:
+        """Serialize step output paths"""
         if step.output_path is None:
-            serialised_output_paths = None
-        else:
-            serialised_output_paths = (
-                [str(p) for p in step.output_path]
-                if isinstance(step.output_path, tuple | list)
-                else str(step.output_path)
-            )
+            return None
+
+        return (
+            [str(p) for p in step.output_path] if isinstance(step.output_path, tuple | list) else str(step.output_path)
+        )
+
+    def _update_metadata(self, step: Step) -> None:
+        """
+        Update in-memory metadata for a configured step.
+
+        Args:
+            step: Step to serialize into the metadata model.
+
+        """
+        params = self._ensure_serializable_params(step)
+        serialized_output_paths = self._serialize_output_paths(step)
 
         outputs = list(step.outputs) if isinstance(step.outputs, tuple) else step.outputs
 
@@ -122,9 +128,9 @@ class Pipeline:
             "processor": getattr(step.processor, "__name__", "no_processor_name"),
             "inputs": step.inputs,
             "outputs": outputs or {},
-            "params": serializable_params,
+            "params": params,
             "input_path": str(step.input_path) if step.input_path else None,
-            "output_path": serialised_output_paths,
+            "output_path": serialized_output_paths,
         }
 
     def add_step(
@@ -452,6 +458,45 @@ class Pipeline:
                 if fail_fast:
                     raise RuntimeError(f"Step '{step.name}': Aborting pipeline execution due to step failure.") from exc
 
+    def _launch_parallel_steps(
+        self, executor: ThreadPoolExecutor | ProcessPoolExecutor, sorter: TopologicalSorter
+    ) -> dict[Future[Any], str]:
+        running: dict[Future[Any], str] = {}
+        for step_name in sorter.get_ready():
+            step = self.steps[step_name]
+            if self._failed_or_skipped_inputs(step):
+                sorter.done(step_name)
+                continue
+
+            input_values = self._get_input_values(step)
+            if self._attempt_output_load(step):
+                sorter.done(step_name)
+                continue
+
+            future = executor.submit(step.processor, *input_values, **step.params)
+            running[future] = step_name
+        return running
+
+    def _process_finished_steps(self, sorter: TopologicalSorter, running: dict[Future[Any], str], fail_fast: bool):
+        for future in as_completed(running):
+            step_name = running.pop(future)
+            step = self.steps[step_name]
+            try:
+                output = future.result()
+                step.data = output
+                step.save_output()
+            except BaseException as exc:
+                self.failed_steps.add(step_name)
+                self.errors[step_name] = exc
+                logger.exception(f"Step '{step.name}': failed to run.")
+                sorter.done(step_name)
+                if fail_fast:
+                    for pending in running:
+                        pending.cancel()
+                    raise RuntimeError(f"Step '{step.name}': Aborting pipeline execution due to step failure.") from exc
+                continue
+            sorter.done(step_name)
+
     def _run_parallel(
         self, mode: Literal["thread", "process"], max_workers: int | None, fail_fast: bool = False
     ) -> None:
@@ -478,44 +523,13 @@ class Pipeline:
 
         with executor_cls(max_workers=max_workers) as executor:
             while sorter.is_active():
-                for step_name in sorter.get_ready():
-                    step = self.steps[step_name]
-                    if self._failed_or_skipped_inputs(step):
-                        sorter.done(step_name)
-                        continue
-
-                    input_values = self._get_input_values(step)
-                    if self._attempt_output_load(step):
-                        sorter.done(step_name)
-                        continue
-
-                    future = executor.submit(step.processor, *input_values, **step.params)
-                    running[future] = step_name
-
+                running.update(self._launch_parallel_steps(executor=executor, sorter=sorter))
                 logger.debug(f"Steps running in parallel: {list(running.values())}")
+
                 if not running:
                     continue
 
-                for future in as_completed(running):
-                    step_name = running.pop(future)
-                    step = self.steps[step_name]
-                    try:
-                        output = future.result()
-                        step.data = output
-                        step.save_output()
-                    except BaseException as exc:
-                        self.failed_steps.add(step_name)
-                        self.errors[step_name] = exc
-                        logger.exception(f"Step '{step.name}': failed to run.")
-                        sorter.done(step_name)
-                        if fail_fast:
-                            for pending in running:
-                                pending.cancel()
-                            raise RuntimeError(
-                                f"Step '{step.name}': Aborting pipeline execution due to step failure."
-                            ) from exc
-                        continue
-                    sorter.done(step_name)
+                self._process_finished_steps(sorter=sorter, running=running, fail_fast=fail_fast)
 
     def run(
         self,

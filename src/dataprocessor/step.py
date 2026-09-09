@@ -202,11 +202,11 @@ class Step:
             return
 
         if not isinstance(self.output_path, tuple | list):
-            self.save_method(self.data, self.output_path)  # type: ignore
+            self.save_method(self.data, self.output_path)  # ty: ignore[call-non-callable]
             return
 
         n_output_paths = len(self.output_path)
-        save_methods = (
+        save_methods: list[SaveMethod] = (
             n_output_paths * [self.save_method]
             if not isinstance(self.save_method, tuple | list)
             else list(self.save_method)
@@ -228,11 +228,11 @@ class Step:
             )
 
         if not isinstance(self.output_path, tuple | list):
-            self.data = self.load_method(self.output_path)  # type: ignore
+            self.data = self.load_method(self.output_path)  # ty: ignore[call-non-callable]
             return
 
         n_output_paths = len(self.output_path)
-        load_methods = (
+        load_methods: list[LoadMethod] = (
             n_output_paths * [self.load_method]
             if not isinstance(self.load_method, tuple | list)
             else list(self.load_method)
