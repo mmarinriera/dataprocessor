@@ -17,7 +17,8 @@ Independent steps can run concurrently, making it useful for multi-stage data an
 - **Parallel execution:** Run independent steps concurrently using threads or processes.
 - **Flexible inputs and outputs:** Pass data directly, load it from files, connect steps by name,
     and expose multiple outputs from a single step.
-- **Failure handling:** Track failed steps and skip dependent steps when their inputs are unavailable.
+- **Failure handling:** Track failed steps and report execution errors;
+    optionally continue execution and skip steps whose dependencies have failed.
 
 ## Quick start
 
@@ -91,6 +92,10 @@ pipeline.validate_step_types()
 
 This checks the compatibility of declared input and output types across the pipeline,
 helping identify configuration errors before computationally expensive work begins.
+
+**Note:** Type validation checks declared processor signatures, dependencies, and parameters.
+It does not currently validate the runtime types of literal values supplied through
+the `input_data` parameter of `Pipeline.add_step`.
 
 ### 3. Execute the workflow
 
@@ -200,6 +205,7 @@ pipeline.add_step(
     outputs=["evens", "odds"],
     output_path=(data_path / "evens.csv", data_path / "odds.csv"),
     save_method=save_sequence_csv,
+    load_method=load_sequence_csv,
 )
 ```
 
@@ -221,10 +227,11 @@ pipeline.add_step(
     params={"factor": 2},
     output_path=data_path / "evens_scaled.csv",
     save_method=save_sequence_csv,
+    load_method=load_sequence_csv,
 )
 ```
 
-Here the step "evens_scaled" specifies the output "evens" from the "even_odds" step as its input.
+Here, the evens_scaled step uses the evens output of the even_odd step as its input.
 
 ## Installation
 
