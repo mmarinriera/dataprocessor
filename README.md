@@ -122,8 +122,50 @@ Steps that return multiple outputs can expose individual results through named o
 ## Persistence and caching
 
 DataProcessor supports saving intermediate results to files and loading them in subsequent runs.
+That requires passing save and load data functions to the `save_method` and `load_method` parameters
+of `Pipeline.add_step`, respectively, as well as a file path to `output_path`.
 
-Provide an `output_path`, a `save_method`, and a corresponding `load_method` when configuring a step.
+The function passed to `save_method` should implement the logic of saving the output data to a file.
+The first argument should be the data object, and the second argument the file path. For example:
+
+```python
+def save_sequence_csv(data: list[int], filename: str | Path) -> None:
+    """Saves the input list as a CSV file."""
+    with open(filename, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(data)
+```
+
+can be used to save the data from a step producing a list of integers.
+
+Additionally, you can provide a function to load the step result from a saved file by passing a function
+to `load_method`. The function should take the file path as a first argument, and return an object matching the step
+data type. For example:
+
+```python
+def load_sequence_csv(filename: str | Path) -> list[int]:
+    """Loads a list of integers from a CSV file."""
+    with open(filename, newline="") as f:
+        reader = csv.reader(f)
+        return [int(x) for x in next(reader)]
+```
+
+can be used to load data files that have been saved with `save_sequence_csv`.
+
+Provide an `output_path`, a `save_method`, and a corresponding `load_method` when configuring a step
+to enable saving and potentially loading of step output data.
+
+```python
+pipeline.add_step(
+    name="scaled",
+    processor=scale,
+    input_data=[0, 1, 2, 3, 4, 5, 6],
+    output_path=data_path / "scaled.csv",
+    save_method=save_sequence_csv,
+    load_method=load_sequence_csv,
+)
+```
+
 Set `force_run=False` when creating the pipeline to allow eligible persisted results to be reused.
 Persisted results from a specific step will only be used if the corresponding data file
 is more recent than the data files from the corresponding dependency steps.
@@ -139,6 +181,50 @@ the cached result will be ignored and that step will be run.
 In particular, changes to processor implementation, external dependencies, environment settings,
 or other hidden inputs may not be detected automatically.
 Users are responsible for ensuring that persisted outputs remain valid for their workflow.
+
+## Multiple outputs
+
+If a processing step uses a function that returns a tuple of objects, each of these objects can be used independently
+by other steps, by defining step outputs. For example:
+
+```python
+def split_even_odd(values: list[int]) -> tuple[list[int], list[int]]:
+    evens = [value for value in values if value % 2==0]
+    odds = [value for value in values if value % 2!=0]
+    return evens, odds
+
+pipeline.add_step(
+    name="even_odd",
+    processor=split_even_odd,
+    input_data=[0, 1, 2, 3, 4, 5, 6],
+    outputs=["evens", "odds"],
+    output_path=(data_path / "evens.csv", data_path / "odds.csv"),
+    save_method=save_sequence_csv,
+)
+```
+
+The function `split_even_odd` returns a tuple with two lists, thus when we create the step "even_odd", we can
+define specific keywords for each of the objects returned by the function (i.e. "evens" and "odds")
+in the `outputs` parameter.
+Each output object has to be saved in a different file path, by providing a tuple of file paths.
+If output objects are of different types, you can provide multiple functions to the `save_method` parameter
+using a tuple.
+
+Later steps can now reference a single step output in the `inputs` parameter
+using the pattern "<step_name>.<output_keyword>". For instance,
+
+```python
+pipeline.add_step(
+    name="evens_scaled",
+    processor=scale,
+    inputs="even_odd.evens",
+    params={"factor": 2},
+    output_path=data_path / "evens_scaled.csv",
+    save_method=save_sequence_csv,
+)
+```
+
+Here the step "evens_scaled" specifies the output "evens" from the "even_odds" step as its input.
 
 ## Installation
 
