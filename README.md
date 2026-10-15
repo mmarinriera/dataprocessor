@@ -136,7 +136,7 @@ def save_sequence_csv(data: list[int], filename: str | Path) -> None:
         writer.writerow(data)
 ```
 
-can be used to save the data from a step producing a list of integers.
+can be used to save the data from a step producing a list of integers to a CSV file.
 
 Additionally, you can provide a function to load the step result from a saved file by passing a function
 to `load_method`. The function should take the file path as a first argument, and return an object matching the step
@@ -150,7 +150,7 @@ def load_sequence_csv(filename: str | Path) -> list[int]:
         return [int(x) for x in next(reader)]
 ```
 
-can be used to load data files that have been saved with `save_sequence_csv`.
+can be used to load data from CSV files that have been created with `save_sequence_csv`.
 
 Provide an `output_path`, a `save_method`, and a corresponding `load_method` when configuring a step
 to enable saving and potentially loading of step output data.
