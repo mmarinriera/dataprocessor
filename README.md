@@ -125,11 +125,12 @@ DataProcessor supports saving intermediate results to files and loading them in 
 
 Provide an `output_path`, a `save_method`, and a corresponding `load_method` when configuring a step.
 Set `force_run=False` when creating the pipeline to allow eligible persisted results to be reused.
-Persisted results from a specific step will only be used if the container file is more recent than the data files
-from the corresponding dependency steps. In other words, if stored input data is more recent than the cached output
-for a certain step, the step will run and fresh output will be generated.
+Persisted results from a specific step will only be used if the corresponding data file
+is more recent than the data files from the corresponding dependency steps.
+In other words, if stored input data is more recent than the cached output for a certain step,
+the step will run and fresh output will be generated.
 
-When pipeline metadata tracking is enabled through the `metadata_path` parameter,
+When pipeline metadata tracking is enabled by providing a file path to the `metadata_path` parameter,
 DataProcessor also records step configuration information and compares it with the previous run.
 If the metadata from a specific step changes from one run to the next,
 the cached result will be ignored and that step will be run.
@@ -167,8 +168,16 @@ uv sync --group dev
 
 Run the test suite and example workflows using tox:
 
+First, install tox with the `tox-uv` extension:
+
 ```bash
-uvx tox
+uv tool install tox --with tox-uv
+```
+
+Run tox in the repository root:
+
+```bash
+tox
 ```
 
 The tox configuration covers tests across multiple Python versions, coverage reporting, example execution,
@@ -177,8 +186,8 @@ and code-quality checks using `prek`.
 Install the repository's pre-commit hooks with:
 
 ```bash
-uv run prek install
-uv run prek install --hook-type commit-msg
+prek install
+prek install --hook-type commit-msg
 ```
 
 ## Examples and API
