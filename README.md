@@ -233,6 +233,8 @@ pipeline.add_step(
 
 Here, the evens_scaled step uses the evens output of the even_odd step as its input.
 
+Check [here](./examples/multiple_outputs_pipeline.py) for a full runnable example using multiple step outputs.
+
 ## Installation
 
 DataProcessor requires Python 3.10 or newer.
