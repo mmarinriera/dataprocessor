@@ -174,7 +174,7 @@ the step will run and fresh output will be generated.
 
 When pipeline metadata tracking is enabled by providing a file path to the `metadata_path` parameter,
 DataProcessor also records step configuration information and compares it with the previous run.
-If the metadata from a specific step changes from one run to the next,
+If the metadata from a specific step changes from one run to the next (e.g. step parameters are changed),
 the cached result will be ignored and that step will be run.
 
 **Important:** Cache validation is not a complete guarantee of reproducibility.
