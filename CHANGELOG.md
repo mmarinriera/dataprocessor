@@ -2,6 +2,27 @@
 
 <!-- version list -->
 
+## v0.2.0 (2026-10-16)
+
+### Chores
+
+- Clean up fossil code
+  ([`ed19b06`](https://github.com/mmarinriera/dataprocessor/commit/ed19b068fa5424784ef97e5ab69a145fc82024eb))
+
+- Update dependencies and hooks ([#14](https://github.com/mmarinriera/dataprocessor/pull/14),
+  [`3fd963e`](https://github.com/mmarinriera/dataprocessor/commit/3fd963e7e09876d47f5ae5c58f77498c7f4d1512))
+
+### Documentation
+
+- Extend documentation in README.md ([#15](https://github.com/mmarinriera/dataprocessor/pull/15),
+  [`fa17c64`](https://github.com/mmarinriera/dataprocessor/commit/fa17c64740a72a236211e9275ed62d49c89c24ba))
+
+### Features
+
+- **examples**: Add sciency examples ([#16](https://github.com/mmarinriera/dataprocessor/pull/16),
+  [`b54ab0a`](https://github.com/mmarinriera/dataprocessor/commit/b54ab0a6d4367a0abe006cd14598665f7cb79a6f))
+
+
 ## v0.1.2 (2026-03-19)
 
 ### Bug Fixes
