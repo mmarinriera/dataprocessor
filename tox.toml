@@ -19,12 +19,15 @@ commands = [
 depends = [ "3.*" ]
 
 [env.examples]
-runner = "uv-venv-lock-runner"
+runner = "uv-venv-runner"
 description = "Running example scripts to ensure they work correctly."
+deps = [ "biopython", "matplotlib", "numpy", "pyyaml", "scikit-image" ]
 commands = [
   [ "python", "examples/simple_pipeline.py" ],
   [ "python", "examples/text_pipeline.py" ],
   [ "python", "examples/multiple_outputs_pipeline.py" ],
+  [ "python", "examples/image_processing.py" ],
+  [ "python", "examples/sequence_analysis.py" ],
 ]
 
 [env.prek]

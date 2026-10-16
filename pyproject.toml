@@ -41,6 +41,10 @@ lint.select = [ "ALL" ]
 lint.ignore = [ "COM812", "D203", "D212" ]
 lint.isort.force-single-line = true
 
+[tool.ty]
+src.exclude = [ "examples/image_processing.py", "examples/sequence_analysis.py" ]
+src.include = [ "examples", "src", "tests" ]
+
 [tool.pytest]
 addopts = [ "-s" ]
 log_cli = true
