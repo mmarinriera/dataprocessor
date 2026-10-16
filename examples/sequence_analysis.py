@@ -1,17 +1,8 @@
-"""
-Example: comparative DNA sequence analysis with DataProcessor.
-
-Demonstrates FASTA parsing, sequence quality control, motif scanning,
-pairwise alignment, multiple named outputs, and dependency-aware execution.
-
-The input sequences are synthetic. Motif positions use zero-based indexing.
-"""
-
-import json
 from io import StringIO
 from itertools import combinations
 from typing import Any
 
+import yaml
 from Bio import Align
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
@@ -171,6 +162,15 @@ def build_report(
 
 
 def main() -> None:
+    print(f"""
+Sequence analysis pipeline:
+    - Parse sequence records from FASTA format.
+    - Calculate sequence length and GC ratio.
+    - Locate motif {MOTIF} in sequence.
+    - Align all prossible sequence pairs.
+    - Compile statistics from analysis.
+""")
+
     pipeline = Pipeline()
 
     pipeline.add_step(
@@ -219,9 +219,10 @@ def main() -> None:
     alignments = pipeline.get_output("pairwise_alignment")
     report = pipeline.get_output("report")
 
-    print(json.dumps(report, indent=2))
+    print("\nResults: ***********************************\n")
+    print(yaml.dump(report, sort_keys=False))
+    print("********************************************")
 
-    # Verify known properties of the synthetic input.
     assert len(qc_results) == 3
     assert {result["id"] for result in qc_results} == {
         "reference",
