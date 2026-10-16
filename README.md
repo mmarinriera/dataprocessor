@@ -287,8 +287,8 @@ prek install --hook-type commit-msg
 
 ## Examples and API
 
-See the [`examples/`](examples/) directory for additional runnable workflows,
-including text processing and multiple-output pipelines.
+See the [`examples/`](examples/) directory for additional runnable workflows.
+Check [EXAMPLES.md](examples/EXAMPLES.md) for more information.
 
 For implementation details, start with the [`src/dataprocessor/`](src/dataprocessor/) package
 and the tests in [`tests/`](tests/).
