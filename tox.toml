@@ -21,7 +21,7 @@ depends = [ "3.*" ]
 [env.examples]
 runner = "uv-venv-runner"
 description = "Running example scripts to ensure they work correctly."
-deps = [ "biopython", "matplotlib", "numpy", "scikit-image" ]
+deps = [ "biopython", "matplotlib", "numpy", "pyyaml", "scikit-image" ]
 commands = [
   [ "python", "examples/simple_pipeline.py" ],
   [ "python", "examples/text_pipeline.py" ],
