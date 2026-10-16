@@ -1,5 +1,7 @@
 # DataProcessor
 
+[![CI](CI-image)](CI-link)
+
 **A lightweight Python library for building dependency-aware data processing pipelines.**
 
 DataProcessor lets you compose ordinary Python functions into structured workflows,
@@ -296,3 +298,7 @@ and the tests in [`tests/`](tests/).
 ## License
 
 DataProcessor is distributed under the MIT License. See [`LICENSE`](LICENSE) for details.
+
+<!-- Badges -->
+[CI-image]: https://github.com/mmarinriera/dataprocessor/actions/workflows/ci.yaml/badge.svg
+[CI-link]: https://github.com/mmarinriera/dataprocessor/actions/workflows/ci.yaml
