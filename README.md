@@ -1,6 +1,6 @@
 # DataProcessor
 
-[![CI](CI-image)](CI-link)
+[![CI][CI-image]][CI-link]
 
 **A lightweight Python library for building dependency-aware data processing pipelines.**
 
