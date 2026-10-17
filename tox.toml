@@ -15,6 +15,7 @@ commands = [
   [ "coverage", "combine" ],
   [ "coverage", "report", "--fail-under=10" ],
   [ "coverage", "html" ],
+  [ "coverage", "xml" ],
 ]
 depends = [ "3.*" ]
 

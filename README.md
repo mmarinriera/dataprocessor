@@ -1,6 +1,7 @@
 # DataProcessor
 
 [![CI][CI-image]][CI-link]
+[![Coverage][coverage-image]][coverage-link]
 
 **A lightweight Python library for building dependency-aware data processing pipelines.**
 
@@ -302,3 +303,5 @@ DataProcessor is distributed under the MIT License. See [`LICENSE`](LICENSE) for
 <!-- Badges -->
 [CI-image]: https://github.com/mmarinriera/dataprocessor/actions/workflows/ci.yaml/badge.svg
 [CI-link]: https://github.com/mmarinriera/dataprocessor/actions/workflows/ci.yaml
+[coverage-image]: https://codecov.io/gh/mmarinriera/dataprocessor/graph/badge.svg?branch=main
+[coverage-link]: https://codecov.io/gh/mmarinriera/dataprocessor
