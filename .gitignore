@@ -19,6 +19,7 @@ wheels/
 .pytest_cache/
 .coverage*
 .coverage_html_report/
+coverage.xml
 
 # tox
 .tox/
