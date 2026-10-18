@@ -417,7 +417,7 @@ def test_pipeline_update_metadata(subtests: pytest.Subtests) -> None:
     step_metadata = dict(pipeline.metadata["steps"])
 
     pipeline.update_metadata({"author": "me", "version": 1})
-    with subtests.test("User metadata added at top level"):
+    with subtests.test("Custom metadata added at top level"):
         assert pipeline.metadata["author"] == "me"
         assert pipeline.metadata["version"] == 1
 
@@ -464,7 +464,7 @@ def test_pipeline_update_metadata_persisted(tmp_path: Path, subtests: pytest.Sub
     pipeline_0.update_metadata({"author": "me"})
     pipeline_0.run()
 
-    with subtests.test("User metadata is written to the metadata file"):
+    with subtests.test("Custom metadata is written to the metadata file"):
         with open(metadata_path) as f:
             saved_metadata = json.load(f)
         assert saved_metadata["author"] == "me"
@@ -472,7 +472,7 @@ def test_pipeline_update_metadata_persisted(tmp_path: Path, subtests: pytest.Sub
 
 
 @pytest.mark.parametrize(
-    "current_user_metadata, autoload_allowed",
+    "current_custom_metadata, autoload_allowed",
     [
         ({"author": "me", "shape": (2, 3)}, True),
         ({"author": "someone else", "shape": (2, 3)}, False),
@@ -482,7 +482,7 @@ def test_pipeline_update_metadata_persisted(tmp_path: Path, subtests: pytest.Sub
     ],
 )
 def test_pipeline_update_metadata_cache_validation(
-    current_user_metadata: dict[str, Any], autoload_allowed: bool, tmp_path: Path
+    current_custom_metadata: dict[str, Any], autoload_allowed: bool, tmp_path: Path
 ) -> None:
     metadata_path = tmp_path / "metadata.json"
     step_0: dict[str, Any] = {
@@ -501,7 +501,7 @@ def test_pipeline_update_metadata_cache_validation(
 
     pipeline_1 = Pipeline(force_run=False, metadata_path=metadata_path)
     pipeline_1.add_step(**step_0)
-    pipeline_1.update_metadata(current_user_metadata)
+    pipeline_1.update_metadata(current_custom_metadata)
 
     assert pipeline_1._autoload_allowed(pipeline_1.steps["step_0"]) == autoload_allowed
 
