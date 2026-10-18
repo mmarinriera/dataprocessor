@@ -2,6 +2,30 @@
 
 <!-- version list -->
 
+## v0.3.0 (2026-10-18)
+
+### Chores
+
+- Add ci badge to readme
+  ([`24caec6`](https://github.com/mmarinriera/dataprocessor/commit/24caec6e1326e4e30f6c173576660b2a86cd00ac))
+
+- Fix badge link syntax
+  ([`ff4b1d9`](https://github.com/mmarinriera/dataprocessor/commit/ff4b1d94254156f3f6ec533cf4bc7dcbb45f5d95))
+
+- Rename gh workflow
+  ([`b7b32f9`](https://github.com/mmarinriera/dataprocessor/commit/b7b32f9048f96fe33a796eabcdf012973d324eb3))
+
+### Continuous Integration
+
+- Set up codecov and coverage badge ([#17](https://github.com/mmarinriera/dataprocessor/pull/17),
+  [`3366d31`](https://github.com/mmarinriera/dataprocessor/commit/3366d313971dac841bea666e3ec6726c5c64be41))
+
+### Features
+
+- **pipeline**: Add custom metadata ([#18](https://github.com/mmarinriera/dataprocessor/pull/18),
+  [`477909f`](https://github.com/mmarinriera/dataprocessor/commit/477909ffb133875c0c571516e157e791b19b939e))
+
+
 ## v0.2.0 (2026-10-16)
 
 ### Chores
