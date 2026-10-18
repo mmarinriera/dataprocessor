@@ -190,13 +190,22 @@ These entries are saved alongside the step metadata, and are also used for cache
 if any user-defined entry differs from the previous run, cached results are ignored and all steps are run.
 
 ```python
-pipeline.update_metadata({"author": "me", "dataset_version": "2024-01"})
+pipeline.update_metadata({"dataset_version": "2024-01"})
 ```
 
 **Important:** Cache validation is not a complete guarantee of reproducibility.
 In particular, changes to processor implementation, external dependencies, environment settings,
 or other hidden inputs may not be detected automatically.
 Users are responsible for ensuring that persisted outputs remain valid for their workflow.
+
+**Tip:** If your project uses versioning, you can add the current project version to the pipeline metadata with,
+
+```python
+pipeline.update_metadata({"project_version": <VERSION>})
+```
+
+This is a neat way of ensuring that persisted output data generated with older versions of the code
+(potentially with different behaviour) will not be used, and instead fresh output will be generated.
 
 ## Multiple outputs
 
