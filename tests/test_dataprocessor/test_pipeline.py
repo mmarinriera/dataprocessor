@@ -411,6 +411,101 @@ def test_pipeline_match_metadata(tmp_path: Path, subtests: pytest.Subtests, capl
         assert pipeline_2._autoload_allowed(pipeline_2.steps["step_1"])
 
 
+def test_pipeline_update_metadata(subtests: pytest.Subtests) -> None:
+    pipeline = Pipeline(metadata_path="dummy_path.json")
+    pipeline.add_step(name="step_0", processor=_return_same, input_data=[1, 2, 3])
+    step_metadata = dict(pipeline.metadata["steps"])
+
+    pipeline.update_metadata({"author": "me", "version": 1})
+    with subtests.test("User metadata added at top level"):
+        assert pipeline.metadata["author"] == "me"
+        assert pipeline.metadata["version"] == 1
+
+    pipeline.update_metadata({"version": 2, "tags": ["a", "b"]})
+    with subtests.test("Existing keys overwritten and new keys merged"):
+        assert pipeline.metadata["author"] == "me"
+        assert pipeline.metadata["version"] == 2
+        assert pipeline.metadata["tags"] == ["a", "b"]
+
+    with subtests.test("Step metadata is left untouched"):
+        assert pipeline.metadata["steps"] == step_metadata
+
+    with (
+        subtests.test("Reserved 'steps' key raises error"),
+        pytest.raises(ValueError, match="Metadata key 'steps' is reserved for step metadata."),
+    ):
+        pipeline.update_metadata({"steps": {}})
+
+    with (
+        subtests.test("Non JSON-serializable data raises error"),
+        pytest.raises(TypeError, match="Metadata must be JSON serializable"),
+    ):
+        pipeline.update_metadata({"values": {1, 2, 3}})
+
+    with subtests.test("Failed updates do not modify metadata"):
+        assert "values" not in pipeline.metadata
+        assert pipeline.metadata["steps"] == step_metadata
+
+
+def test_pipeline_update_metadata_persisted(tmp_path: Path, subtests: pytest.Subtests) -> None:
+    metadata_path = tmp_path / "metadata.json"
+    output_path = tmp_path / "step_0_output.csv"
+    step_0: dict[str, Any] = {
+        "name": "step_0",
+        "processor": _return_same,
+        "input_data": [1, 2, 3],
+        "output_path": output_path,
+        "load_method": _load_sequence_csv,
+        "save_method": _save_sequence_csv,
+    }
+
+    pipeline_0 = Pipeline(force_run=False, metadata_path=metadata_path)
+    pipeline_0.add_step(**step_0)
+    pipeline_0.update_metadata({"author": "me"})
+    pipeline_0.run()
+
+    with subtests.test("User metadata is written to the metadata file"):
+        with open(metadata_path) as f:
+            saved_metadata = json.load(f)
+        assert saved_metadata["author"] == "me"
+        assert saved_metadata["steps"] == pipeline_0.metadata["steps"]
+
+
+@pytest.mark.parametrize(
+    "current_user_metadata, autoload_allowed",
+    [
+        ({"author": "me", "shape": (2, 3)}, True),
+        ({"author": "someone else", "shape": (2, 3)}, False),
+        ({"author": "me", "shape": (2, 3), "extra": 1}, False),
+        ({"author": "me"}, False),
+        ({}, False),
+    ],
+)
+def test_pipeline_update_metadata_cache_validation(
+    current_user_metadata: dict[str, Any], autoload_allowed: bool, tmp_path: Path
+) -> None:
+    metadata_path = tmp_path / "metadata.json"
+    step_0: dict[str, Any] = {
+        "name": "step_0",
+        "processor": _return_same,
+        "input_data": [1, 2, 3],
+        "output_path": tmp_path / "step_0_output.csv",
+        "load_method": _load_sequence_csv,
+        "save_method": _save_sequence_csv,
+    }
+
+    pipeline_0 = Pipeline(force_run=False, metadata_path=metadata_path)
+    pipeline_0.add_step(**step_0)
+    pipeline_0.update_metadata({"author": "me", "shape": (2, 3)})
+    pipeline_0.run()
+
+    pipeline_1 = Pipeline(force_run=False, metadata_path=metadata_path)
+    pipeline_1.add_step(**step_0)
+    pipeline_1.update_metadata(current_user_metadata)
+
+    assert pipeline_1._autoload_allowed(pipeline_1.steps["step_0"]) == autoload_allowed
+
+
 def test_pipeline_run_parallel_thread_mode() -> None:
     branch_sync = threading.Barrier(2)
 
