@@ -133,6 +133,39 @@ class Pipeline:
             "output_path": serialized_output_paths,
         }
 
+    def update_metadata(self, data: dict[str, Any]) -> None:
+        """
+        Add arbitrary user-defined entries to the pipeline metadata.
+
+        Entries are merged into :attr:`metadata` at the top level, overwriting existing keys with the same name.
+        They are persisted alongside step metadata when the pipeline runs with ``metadata_path`` set.
+        If user-defined metadata does not match the tracked metadata from the previous run,
+        cached results are invalidated for all steps.
+
+        Args:
+            data: Mapping of metadata keys to JSON-serializable values.
+
+        Raises:
+            ValueError: If ``data`` contains the reserved ``"steps"`` key.
+            TypeError: If ``data`` is not JSON serializable.
+
+        """
+        if "steps" in data:
+            raise ValueError("Metadata key 'steps' is reserved for step metadata.")
+
+        try:
+            # Round-trip through JSON so in-memory values match what is loaded from disk (e.g. tuples -> lists).
+            serialized_data = json.loads(json.dumps(data))
+        except (TypeError, ValueError) as exc:
+            raise TypeError(f"Metadata must be JSON serializable: {exc}") from exc
+
+        self.metadata.update(serialized_data)
+
+    @staticmethod
+    def _get_user_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
+        """Return user-defined metadata entries, excluding step metadata."""
+        return {k: v for k, v in metadata.items() if k != "steps"}
+
     def add_step(
         self,
         name: str,
@@ -238,7 +271,8 @@ class Pipeline:
             - The output files from input steps, or the input file from current step need
                 to be older than the output file from the current step.
             - If `Pipeline.track_metadata` is enabled, current step configuration (e.g. passed `param` values)
-                need to match the tracked metadata from the previous run.
+                and user-defined metadata (see :meth:`update_metadata`) need to match the tracked metadata
+                from the previous run.
 
         Args:
             step: Step being evaluated for auto-loading.
@@ -274,6 +308,11 @@ class Pipeline:
 
         if self.tracked_metadata is None:
             logger.debug(f"Step '{step.name}': No tracked metadata found, cannot validate autoload.")
+            return False
+
+        # Check that user-defined metadata matches the previous run
+        if self._get_user_metadata(self.metadata) != self._get_user_metadata(self.tracked_metadata):
+            logger.debug(f"Step '{step.name}': Tracked user metadata does not match current user metadata.")
             return False
 
         # Check that tracked step metadata matches current step configuration

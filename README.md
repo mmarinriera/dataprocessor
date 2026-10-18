@@ -185,6 +185,14 @@ DataProcessor also records step configuration information and compares it with t
 If the metadata from a specific step changes from one run to the next (e.g. step parameters are changed),
 the cached result will be ignored and that step will be run.
 
+Additional, user-defined information can be stored in the metadata file with `Pipeline.update_metadata`.
+These entries are saved alongside the step metadata, and are also used for cache validation:
+if any user-defined entry differs from the previous run, cached results are ignored and all steps are run.
+
+```python
+pipeline.update_metadata({"author": "me", "dataset_version": "2024-01"})
+```
+
 **Important:** Cache validation is not a complete guarantee of reproducibility.
 In particular, changes to processor implementation, external dependencies, environment settings,
 or other hidden inputs may not be detected automatically.
