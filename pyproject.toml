@@ -15,6 +15,7 @@ classifiers = [
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",
+  "Programming Language :: Python :: 3.15",
 ]
 dependencies = []
 urls.Repository = "https://github.com/mmarinriera/dataprocessor"
@@ -41,8 +42,8 @@ lint.ignore = [ "COM812", "D203", "D212" ]
 lint.isort.force-single-line = true
 
 [tool.ty]
-src.exclude = [ "examples/image_processing.py", "examples/sequence_analysis.py" ]
 src.include = [ "examples", "src", "tests" ]
+src.exclude = [ "examples/image_processing.py", "examples/sequence_analysis.py" ]
 
 [tool.pytest]
 addopts = [ "-s" ]
