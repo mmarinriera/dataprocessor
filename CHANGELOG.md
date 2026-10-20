@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.4.0 (2026-10-20)
+
+### Features
+
+- Support python up to 3.15 and drop support for 3.10
+  ([#19](https://github.com/mmarinriera/dataprocessor/pull/19),
+  [`a6f692c`](https://github.com/mmarinriera/dataprocessor/commit/a6f692ce26fc51cd98d8a7c14a50e5705caaa113))
+
+
 ## v0.3.0 (2026-10-18)
 
 ### Chores
