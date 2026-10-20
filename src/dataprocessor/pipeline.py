@@ -1,6 +1,5 @@
 import itertools
 import json
-import sys
 from collections.abc import Callable
 from concurrent.futures import Future
 from concurrent.futures import ProcessPoolExecutor
@@ -10,7 +9,6 @@ from graphlib import TopologicalSorter
 from pathlib import Path
 from typing import Any
 from typing import Literal
-from typing import TypeAlias
 from typing import get_args
 from typing import get_origin
 
@@ -23,11 +21,6 @@ from dataprocessor.utils import get_func_arg_type_annotations
 from dataprocessor.utils import get_func_arg_types
 from dataprocessor.utils import get_func_required_args
 from dataprocessor.utils import get_func_return_type_annotation
-
-if sys.version_info >= (3, 11):
-    TopologicalSorterStr: TypeAlias = TopologicalSorter[str]
-else:
-    TopologicalSorterStr: TypeAlias = TopologicalSorter
 
 logger = get_logger()
 
@@ -324,7 +317,7 @@ class Pipeline:
 
         return True
 
-    def _build_sorter(self) -> TopologicalSorterStr:
+    def _build_sorter(self) -> TopologicalSorter[str]:
         """
         Build a topological sorter for current step dependencies.
 
@@ -332,7 +325,7 @@ class Pipeline:
             Sorter prepared with all pipeline step edges.
 
         """
-        sorter: TopologicalSorterStr = TopologicalSorterStr()
+        sorter: TopologicalSorter[str] = TopologicalSorter()
         for step in self.steps.values():
             try:
                 step_inputs = [self._get_step_name_from_input_reference(r) for r in step.inputs]
@@ -497,7 +490,7 @@ class Pipeline:
                     raise RuntimeError(f"Step '{step.name}': Aborting pipeline execution due to step failure.") from exc
 
     def _launch_parallel_steps(
-        self, executor: ThreadPoolExecutor | ProcessPoolExecutor, sorter: TopologicalSorter
+        self, executor: ThreadPoolExecutor | ProcessPoolExecutor, sorter: TopologicalSorter[str]
     ) -> dict[Future[Any], str]:
         running: dict[Future[Any], str] = {}
         for step_name in sorter.get_ready():
@@ -515,7 +508,7 @@ class Pipeline:
             running[future] = step_name
         return running
 
-    def _process_finished_steps(self, sorter: TopologicalSorter, running: dict[Future[Any], str], fail_fast: bool):
+    def _process_finished_steps(self, sorter: TopologicalSorter[str], running: dict[Future[Any], str], fail_fast: bool):
         for future in as_completed(running):
             step_name = running.pop(future)
             step = self.steps[step_name]

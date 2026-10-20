@@ -1,5 +1,5 @@
 requires = [ "tox>=4" ]
-env_list = [ "py313", "py312", "py311", "py310", "coverage", "examples", "prek" ]
+env_list = [ "py315", "py314", "py313", "py312", "py311", "coverage", "examples", "prek" ]
 
 [env_run_base]
 runner = "uv-venv-lock-runner"
@@ -35,7 +35,7 @@ commands = [
 runner = "uv-venv-runner"
 description = "Running pre-commit checks (formatting, linting, type checking) with prek."
 skip_install = true
-deps = "prek==0.5.2"
+deps = "prek==0.5.6"
 commands = [
   [ "prek", "run", "--all-files", "--show-diff-on-failure" ],
 ]
