@@ -257,7 +257,7 @@ Check [here](examples/multiple_outputs_pipeline.py) for a full runnable example 
 
 ## Installation
 
-DataProcessor requires Python 3.10 or newer.
+DataProcessor requires Python 3.11 or newer.
 
 Install directly from GitHub using pip:
 
